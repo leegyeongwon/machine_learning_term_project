@@ -1,0 +1,48 @@
+{
+  "users": 6040,
+  "rated_items": 3706,
+  "catalog_items": 3883,
+  "ratings": 1000209,
+  "rating_distribution": {
+    "1": 56174,
+    "2": 107557,
+    "3": 261197,
+    "4": 348971,
+    "5": 226310
+  },
+  "ratings_missing": {
+    "user_id": 0,
+    "item_id": 0,
+    "rating": 0,
+    "timestamp": 0
+  },
+  "movies_missing": {
+    "item_id": 0,
+    "title": 0,
+    "genres": 0
+  },
+  "n_train": 802553,
+  "n_test": 197656,
+  "min_train_per_user": 16,
+  "seed": 42,
+  "test_size": 0.2,
+  "split": "per-user random holdout; floor(n * test_size), minimum one train",
+  "recommend_k": 30,
+  "recommend_user_id": 1,
+  "python": "3.14.7",
+  "versions": {
+    "numpy": "2.5.4",
+    "pandas": "3.0.6",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "matplotlib": "3.11.2",
+    "psutil": "7.2.2"
+  },
+  "input_sha256": {
+    "ratings.dat": "506d64ca44484487c11dc2d9a28de5c54948213e6b96285e298afe28d6ea4e0f",
+    "movies.dat": "0140fc2356357c1a851d0f52e893a1e4d3696df632c4141cea8d5bc3d621f0b9",
+    "users.dat": "1dc3a95300cb19f7c10e027daf29b8cdf1d908dab65b5edfb45950aa389a10a3"
+  },
+  "total_seconds": 138.2210316999117,
+  "peak_working_set_mib": 543.296875
+}
