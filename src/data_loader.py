@@ -41,6 +41,26 @@ def load_movielens(data_dir):
         movies 컬럼: item_id, title, genres
     하는 일:
         sep='::', engine='python', encoding='latin-1'로 읽고 validate_ratings를 적용한다.
-        평점 범위는 1~5여야 한다.
+        평점 범위는 1~5여야 한다. 모델 학습용 데이터셋이다.
+    """
+    raise NotImplementedError
+
+
+def load_goodbooks(data_dir):
+    """Goodbooks-10k ratings/books를 공통 컬럼명으로 읽는다.
+
+    입력:
+        data_dir: ratings.csv, books.csv(또는 확장판)가 있는 경로
+            (기본 data/raw/goodbooks-10k).
+    출력:
+        (ratings, books)
+        ratings 컬럼: user_id, item_id, rating
+        books 컬럼: item_id, title, 그 외 메타데이터(authors, description 등)
+    하는 일:
+        book_id를 item_id로 바꾸고 validate_ratings를 적용한다.
+        관련 도메인(도서)에서 MovieLens로 만든 모델을 같은 CF API로 시험한다.
+        콘텐츠 기반은 설명 텍스트가 있는 확장판을 쓸 수 있다.
+        https://github.com/zygmuntz/goodbooks-10k
+        https://github.com/malcolmosh/goodbooks-10k-extended
     """
     raise NotImplementedError
