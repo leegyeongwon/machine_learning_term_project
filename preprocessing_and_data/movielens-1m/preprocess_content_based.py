@@ -79,7 +79,7 @@ user_profiles_df = pd.DataFrame({
 # ==========================================
 print("\n데이터 저장 중...")
 np.savez_compressed(
-    DATA_PATH / 'movie_content_based/movies_multihot_data.npz',
+    DATA_PATH / 'movies_multihot_data.npz',
     multi_hot_norm=movie_multihot_norm,
     classes=mlb.classes_,
     movie_ids=movies_df['movie_id'].values,
@@ -87,7 +87,7 @@ np.savez_compressed(
 )
 
 np.savez_compressed(
-    DATA_PATH / 'movie_content_based/user_profiles_data.npz',
+    DATA_PATH / 'user_profiles_data.npz',
     user_ids=user_profiles_df.index.values,
     user_profiles_norm=user_profiles_norm,
     genre_classes=mlb.classes_
@@ -99,7 +99,7 @@ print("저장 완료!")
 # 4. 저장된 .npz 파일 로드 후 단일 컬럼 DataFrame 복원 확인 (유저 & 영화)
 # ==========================================
 print("\n--- 유저 프로필 .npz 파일 로드 및 복원 테스트 ---")
-users_npz = np.load(DATA_PATH / 'movie_content_based/user_profiles_data.npz', allow_pickle=True)
+users_npz = np.load(DATA_PATH / 'user_profiles_data.npz', allow_pickle=True)
 
 restored_user_df = pd.DataFrame({
     'user_profile_norm': list(users_npz['user_profiles_norm'])
@@ -109,7 +109,7 @@ print(restored_user_df.head())
 
 
 print("\n--- 영화 데이터 .npz 파일 로드 및 복원 테스트 ---")
-movies_npz = np.load(DATA_PATH / 'movie_content_based/movies_multihot_data.npz', allow_pickle=True)
+movies_npz = np.load(DATA_PATH / 'movies_multihot_data.npz', allow_pickle=True)
 
 restored_movie_df = pd.DataFrame({
     'multi_hot_norm': list(movies_npz['multi_hot_norm']),

@@ -109,7 +109,7 @@ print("평가 마스크 저장 원소 수:", mask_sparse.nnz)
 # ============================================================
 
 np.savez_compressed(
-    DATA_PATH / "movie_item_based/item_user_data.npz",
+    DATA_PATH / "item_user_data.npz",
 
     # 정규화 평점 CSR 구성 요소
     rating_data=rating_sparse.data,
@@ -139,7 +139,7 @@ print("item_user_data.npz 저장 완료")
 # 7. 파일 로드 및 CSR 행렬 복원
 # ============================================================
 
-with np.load(DATA_PATH / "movie_item_based/item_user_data.npz", allow_pickle=False) as loaded:
+with np.load(DATA_PATH / "item_user_data.npz", allow_pickle=False) as loaded:
 
     # 정규화 평점 행렬 복원
     restored_rating_sparse = csr_matrix(
