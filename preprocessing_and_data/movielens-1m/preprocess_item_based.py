@@ -1,6 +1,13 @@
 import pandas as pd
 import numpy as np
 from scipy.sparse import csr_matrix
+from pathlib import Path
+
+# 현재 파이썬 파일 기준으로 깃 루트 찾기
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# 저장 파일 경로
+DATA_PATH = PROJECT_ROOT / "data" / "processed"
 
 # ============================================================
 # 1. 데이터 로드
@@ -102,7 +109,7 @@ print("평가 마스크 저장 원소 수:", mask_sparse.nnz)
 # ============================================================
 
 np.savez_compressed(
-    './item-based/item_user_data.npz',
+    DATA_PATH / "movie_item_based/item_user_data.npz",
 
     # 정규화 평점 CSR 구성 요소
     rating_data=rating_sparse.data,
@@ -132,7 +139,7 @@ print("item_user_data.npz 저장 완료")
 # 7. 파일 로드 및 CSR 행렬 복원
 # ============================================================
 
-with np.load('./item-based/item_user_data.npz', allow_pickle=False) as loaded:
+with np.load(DATA_PATH / "movie_item_based/item_user_data.npz", allow_pickle=False) as loaded:
 
     # 정규화 평점 행렬 복원
     restored_rating_sparse = csr_matrix(
