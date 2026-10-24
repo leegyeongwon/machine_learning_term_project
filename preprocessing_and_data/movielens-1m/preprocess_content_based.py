@@ -72,18 +72,15 @@ user_profiles_df = pd.DataFrame({
 print("\n데이터 저장 중...")
 np.savez_compressed(
     './movies_multihot_data.npz',
-    multi_hot=movie_multihot,
     multi_hot_norm=movie_multihot_norm,
     classes=mlb.classes_,
     movie_ids=movies_df['movie_id'].values,
     titles=movies_df['title'].values,
-    genres=movies_df['genres'].values
 )
 
 np.savez_compressed(
     './user_profiles_data.npz',
     user_ids=user_profiles_df.index.values,
-    user_profiles_raw=user_profiles_raw.values,
     user_profiles_norm=user_profiles_norm,
     genre_classes=mlb.classes_
 )
@@ -107,7 +104,7 @@ print("\n--- 영화 데이터 .npz 파일 로드 및 복원 테스트 ---")
 movies_npz = np.load('./movies_multihot_data.npz', allow_pickle=True)
 
 restored_movie_df = pd.DataFrame({
-    'multi_hot_norm': list(movies_npz['multi_hot_norm'])
+    'multi_hot_norm': list(movies_npz['multi_hot_norm']),
 }, index=movies_npz['movie_ids'])
 
 print(restored_movie_df.head())
