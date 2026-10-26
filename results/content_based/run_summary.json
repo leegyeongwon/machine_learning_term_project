@@ -1,0 +1,15 @@
+{
+  "n_train": 802553,
+  "n_test": 197656,
+  "seed": 42,
+  "test_size": 0.2,
+  "item_features": "C:\\Users\\MYCOM\\Desktop\\학교\\4-1\\머신러닝\\project\\machine_learning_term_project\\data\\processed\\movies_multihot_data.npz",
+  "metrics": {
+    "n_test": 197656,
+    "n_evaluated": 197656,
+    "n_content": 197656,
+    "n_fallback": 0,
+    "mae": 0.903396089127173,
+    "rmse": 1.13976767375906
+  }
+}

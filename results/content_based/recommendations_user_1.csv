@@ -1,0 +1,11 @@
+﻿item_id, title                        , predicted_rating  , method , n_contributors
+     34, Babe (1995)                  , 4.616734552680375 , content,              3
+   1014, Pollyanna (1960)             , 4.616734552680375 , content,              3
+   1812, Wide Awake (1998)            , 4.616734552680375 , content,              3
+   1288, This Is Spinal Tap (1984)    , 4.5331103516796665, content,              3
+    241, Fluke (1995)                 , 4.502135232397621 , content,              2
+    262, "Little Princess, A (1995)"  , 4.502135232397621 , content,              2
+    755, Kim (1950)                   , 4.502135232397621 , content,              2
+    917, "Little Princess, The (1939)", 4.502135232397621 , content,              2
+   1012, Old Yeller (1957)            , 4.502135232397621 , content,              2
+   1013, "Parent Trap, The (1961)"    , 4.502135232397621 , content,              2
