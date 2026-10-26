@@ -281,6 +281,7 @@ if len(valid_plot_indices) > 0:
     model = BGEM3FlagModel(
         "BAAI/bge-m3",
         use_fp16=True,
+        devices=["cuda:0"] 
     )
 
     valid_descriptions = [
