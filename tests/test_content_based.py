@@ -62,6 +62,24 @@ class ContentBasedTests(unittest.TestCase):
         self.assertEqual(contributors, 0)
         self.assertTrue(1.0 <= score <= 5.0)
 
+    def test_known_user_uses_content(self):
+        """학습에 있는 사용자는 Ridge 콘텐츠 예측을 쓴다."""
+        score, method, contributors = self.model.predict_with_details(1, 3)
+        self.assertEqual(method, "content")
+        self.assertGreaterEqual(contributors, 1)
+        self.assertTrue(1.0 <= score <= 5.0)
+
+    def test_prediction_uses_user_mean(self):
+        """후한 유저의 예측이 전역 3점에 붙지 않는지 검증한다."""
+        train = pd.DataFrame({
+            "user_id": [7, 7],
+            "item_id": [1, 2],
+            "rating": [5.0, 4.0],
+        })
+        model = ContentBasedCF(item_features_path=self.features).fit(train)
+        score = model.predict(7, 3)
+        self.assertGreater(score, 3.2)
+
 
 if __name__ == "__main__":
     unittest.main()

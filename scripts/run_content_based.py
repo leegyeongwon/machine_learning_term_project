@@ -14,7 +14,7 @@ from src.content_based import ContentBasedCF
 
 
 def load_ratings(data_dir):
-    """MovieLens ratings.dat을 user_id, item_id, rating으로 읽는다."""
+    """MovieLens ratings.dat을 user_id, item_id, rating, timestamp로 읽는다."""
     path = Path(data_dir) / "ratings.dat"
     ratings = pd.read_csv(
         path,
@@ -54,12 +54,13 @@ def evaluate(model, test):
     하는 일:
         테스트 행을 버리지 않고 MAE, RMSE를 계산한다.
     """
-    details = [
-        model.predict_with_details(u, i)
-        for u, i in test[["user_id", "item_id"]].itertuples(index=False, name=None)
-    ]
+    scores, methods, contributors = model.predict_many(
+        test["user_id"].to_numpy(), test["item_id"].to_numpy()
+    )
     predictions = test[["user_id", "item_id", "rating"]].reset_index(drop=True).copy()
-    predictions[["predicted_rating", "method", "n_contributors"]] = pd.DataFrame(details)
+    predictions["predicted_rating"] = scores
+    predictions["method"] = methods
+    predictions["n_contributors"] = contributors
     error = predictions.predicted_rating - predictions.rating
     content = predictions.method.eq("content")
     metrics = {
@@ -91,12 +92,20 @@ def main():
     parser.add_argument("--top-n", type=int, default=10)
     parser.add_argument("--test-size", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--ridge-alpha", type=float, default=10.0)
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    movies_path = args.data_dir / "movies.dat"
+    users_path = args.data_dir / "users.dat"
     ratings = load_ratings(args.data_dir)
     train, test = split_by_user(ratings, args.test_size, args.seed)
-    model = ContentBasedCF(item_features_path=args.item_features).fit(train)
+    model = ContentBasedCF(
+        item_features_path=args.item_features,
+        movies_path=movies_path if movies_path.exists() else None,
+        users_path=users_path if users_path.exists() else None,
+        ridge_alpha=args.ridge_alpha,
+    ).fit(train)
     metrics, predictions = evaluate(model, test)
     recommendations = model.recommend(args.user_id, args.top_n)
     title_map = dict(zip(model.item_ids_.astype(int), model.titles_))
@@ -119,7 +128,12 @@ def main():
                 "n_test": len(test),
                 "seed": args.seed,
                 "test_size": args.test_size,
+                "ridge_alpha": args.ridge_alpha,
+                "movies_path": str(movies_path) if movies_path.exists() else None,
+                "users_path": str(users_path) if users_path.exists() else None,
                 "item_features": str(args.item_features),
+                "used_demographics": bool(model.has_demo_),
+                "n_features": int(getattr(model.ridge_, "n_features_in_", 0)),
                 "metrics": metrics,
             },
             ensure_ascii=False,

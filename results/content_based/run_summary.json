@@ -3,13 +3,18 @@
   "n_test": 197656,
   "seed": 42,
   "test_size": 0.2,
-  "item_features": "C:\\Users\\MYCOM\\Desktop\\학교\\4-1\\머신러닝\\project\\machine_learning_term_project\\data\\processed\\movies_multihot_data.npz",
+  "ridge_alpha": 10.0,
+  "movies_path": "/Users/chaehee/Documents/school/ML/machine_learning_term_project/preprocessing_and_data/movielens-1m/movies.dat",
+  "users_path": "/Users/chaehee/Documents/school/ML/machine_learning_term_project/preprocessing_and_data/movielens-1m/users.dat",
+  "item_features": "/Users/chaehee/Documents/school/ML/machine_learning_term_project/data/processed/movies_multihot_data.npz",
+  "used_demographics": true,
+  "n_features": 95,
   "metrics": {
     "n_test": 197656,
     "n_evaluated": 197656,
     "n_content": 197656,
     "n_fallback": 0,
-    "mae": 0.903396089127173,
-    "rmse": 1.13976767375906
+    "mae": 0.8045889794456892,
+    "rmse": 1.0081088961223523
   }
 }
