@@ -1,4 +1,3 @@
-
 import ast
 import re
 from pathlib import Path
@@ -9,6 +8,21 @@ from scipy.sparse import csr_matrix
 from sklearn.preprocessing import MultiLabelBinarizer, normalize
 from FlagEmbedding import BGEM3FlagModel
 
+"""
+# 유사도 계산 방법: 줄거리,작가,장르 -> 코사인 유사도.
+#                  페이지, 출판 연도 -> abs((유저 선호 페이지수, 연도) - (실제 책의 페이지수, 연도)). 작을 수록 좋음
+
+# 유사도 계산을 하면 줄거리(-1~1), 작가(-1~1), 장르(-1~1), 페이지(0~1), 연도(0~1)값이 나옵니다.
+
+# 계산 후에 줄거리, 작가, 장르에 (A+1)/2 계산을 해서 0~1로 바꾸고, 페이지, 연도는 각각 (1-A)계산을 해서 1에 가까우면 좋도록 바꿉니다.
+# 전체를 더하면 0점~5점이라는 점수를 가집니다. 0점일수록 유사도가 낮고 5점이면 유사도가 높습니다.
+
+# 마지막으로 각 요소에 가중치를 곱해서 더합니다. 
+# ex) 최종 점수 = (줄거리*w1 + 작가*w2 + 장르*w3 + 페이지*w4 + 연도*w5) 
+# w1, w2, w3, w4, w5는 하이퍼파라미터로, validation set을 나눠 실험(머신러닝 학습) 후에 가장 좋은 것을 채택해 test합니다.
+
+# 추가로 plot_embedding요소는 제대로 작동하는지 확인이 어렵습니다. 실험 후에 머신러닝 모델이 제대로 수렴하는지 보고 안되면 수정해야할 듯 합니다.
+"""
 
 # ============================================================
 # 1. 설정
@@ -259,6 +273,7 @@ numeric_features = np.column_stack(
 ).astype(np.float32)
 
 # ---------- 4-4. 줄거리: BGE-M3 임베딩 ----------
+# GPU 환경을 권장합니다. 데이터 양이 많아서 cpu로 하니까 5시간 걸림
 
 descriptions = (
     books_df["description"]
@@ -281,6 +296,7 @@ if len(valid_plot_indices) > 0:
     model = BGEM3FlagModel(
         "BAAI/bge-m3",
         use_fp16=True,
+        devices="cuda:0"
     )
 
     valid_descriptions = [
@@ -379,16 +395,19 @@ rating_strength = csr_matrix(
     dtype=np.float32,
 )
 
+# 3점 초과 평점만 선호도에 반영
+preference_weights = ratings_adjusted.maximum(0).tocsr()
+
 # ---------- 5-1. 장르 프로필 ----------
 
-user_genre_profiles = ratings_adjusted @ genres
+user_genre_profiles = preference_weights @ genres
 user_genre_profiles = normalize(
     user_genre_profiles, norm="l2", axis=1
 ).tocsr()
 
-# ---------- 5-2. 저자 프로필 ----------
+# ---------- 5-2. 작가 프로필 ----------
 
-user_author_profiles = ratings_adjusted @ authors
+user_author_profiles = preference_weights @ authors
 user_author_profiles = normalize(
     user_author_profiles, norm="l2", axis=1
 ).tocsr()
@@ -412,9 +431,11 @@ else:
 
 # ---------- 5-4. 수치형 프로필 ----------
 
-# 0~1 특성을 0.5 중심으로 옮겨 선호 방향을 보존
-# 스칼라 수치형 프로필은 L2 정규화하지 않음
-centered_numeric = numeric_features - 0.5
+# 평점 3점 초과인 책만 선호 프로필에 반영
+# 4점은 가중치 1, 5점은 가중치 2
+preference_weights = ratings_adjusted.maximum(0).tocsr()
+
+# 책의 특징값과 같은 0~1 범위에서 사용자 선호값 계산
 numeric_profiles = np.zeros((n_users, 2), dtype=np.float32)
 
 for feature_idx, missing_mask in enumerate(
@@ -422,15 +443,16 @@ for feature_idx, missing_mask in enumerate(
 ):
     observed = ~missing_mask
 
-    centered_values = centered_numeric[:, feature_idx].copy()
-    centered_values[~observed] = 0.0
+    # 해당 특징값이 존재하는 책만 프로필 계산에 사용
+    observed_values = numeric_features[:, feature_idx].copy()
+    observed_values[~observed] = 0.0
 
     numerator = np.asarray(
-        ratings_adjusted @ centered_values
+        preference_weights @ observed_values
     ).reshape(-1)
 
     denominator = np.asarray(
-        rating_strength @ observed.astype(np.float32)
+        preference_weights @ observed.astype(np.float32)
     ).reshape(-1)
 
     np.divide(
@@ -439,6 +461,13 @@ for feature_idx, missing_mask in enumerate(
         out=numeric_profiles[:, feature_idx],
         where=denominator > 0,
     )
+
+    # 선호하는 책이 없거나 해당 특징값을 가진 선호 책이 없으면
+    # 프로필을 0.5(정규화 범위의 중간값)로 설정
+    numeric_profiles[denominator <= 0, feature_idx] = 0.5
+
+    # 유사도 계산 시에 책의 페이지, 연도랑 유저 선호 페이지, 연도랑 뺀 후에 절댓값 취하는 방법이 있습니다.
+    # 작을 수록 좋습니다
 
 # ---------- 5-5. 유저 프로필을 하나의 파일에 저장 ----------
 
