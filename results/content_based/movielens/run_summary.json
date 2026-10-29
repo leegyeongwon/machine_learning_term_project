@@ -1,0 +1,47 @@
+{
+  "dataset": "movielens",
+  "seed": 42,
+  "val_size": 0.2,
+  "test_size": 0.2,
+  "ridge_alpha": 100.0,
+  "best_ridge_alpha": 100.0,
+  "best_val_mae": 0.8029603961883984,
+  "val_mae_by_alpha": [
+    {
+      "ridge_alpha": 1.0,
+      "val_mae": 0.8074395548913368,
+      "val_rmse": 1.013874489876191,
+      "n_content": 197656
+    },
+    {
+      "ridge_alpha": 10.0,
+      "val_mae": 0.8065553104347774,
+      "val_rmse": 1.01262447990831,
+      "n_content": 197656
+    },
+    {
+      "ridge_alpha": 100.0,
+      "val_mae": 0.8029603961883984,
+      "val_rmse": 1.0073388656784366,
+      "n_content": 197656
+    }
+  ],
+  "tuned": true,
+  "movies_path": "preprocessing_and_data\\movielens-1m\\movies.dat",
+  "users_path": "preprocessing_and_data\\movielens-1m\\users.dat",
+  "item_features": "C:\\Users\\MYCOM\\Desktop\\학교\\4-1\\머신러닝\\project\\machine_learning_term_project\\data\\processed\\movies_multihot_data.npz",
+  "user_id": 1,
+  "n_train": 604897,
+  "n_val": 197656,
+  "n_test": 197656,
+  "used_demographics": true,
+  "n_features": 95,
+  "metrics": {
+    "n_test": 197656,
+    "n_evaluated": 197656,
+    "n_content": 197656,
+    "n_fallback": 0,
+    "mae": 0.8004352195707041,
+    "rmse": 1.0031337713891144
+  }
+}

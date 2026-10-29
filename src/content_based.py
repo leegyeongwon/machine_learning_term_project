@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.sparse import csr_matrix
+from sklearn.preprocessing import normalize
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ITEM_FEATURES = ROOT / "data" / "processed" / "movies_multihot_data.npz"
@@ -16,6 +18,46 @@ def parse_year(title):
     """제목에서 개봉연도를 뽑는다. 없으면 NaN."""
     match = YEAR_RE.search(str(title))
     return float(match.group(1)) if match else np.nan
+
+
+def split_by_user(ratings, test_size=0.2, random_state=42):
+    """사용자별 무작위 holdout. 단일 평점 사용자는 학습에만 남긴다."""
+    if not 0 < test_size < 1:
+        raise ValueError("test_size는 0과 1 사이여야 합니다.")
+    frame = ratings.reset_index(drop=True)
+    rng = np.random.default_rng(random_state)
+    mask = np.zeros(len(frame), dtype=bool)
+    for positions in frame.groupby("user_id", sort=False).indices.values():
+        if len(positions) > 1:
+            count = min(len(positions) - 1, max(1, int(len(positions) * test_size)))
+            mask[rng.choice(positions, count, replace=False)] = True
+    return frame.loc[~mask].copy(), frame.loc[mask].copy()
+
+
+def split_by_user_three(ratings, val_size=0.2, test_size=0.2, random_state=42):
+    """사용자별 train/validation/test. 학습은 최소 1개를 남긴다."""
+    if not 0 < val_size < 1 or not 0 < test_size < 1:
+        raise ValueError("val_size와 test_size는 0과 1 사이여야 합니다.")
+    if val_size + test_size >= 1:
+        raise ValueError("val_size와 test_size의 합은 1보다 작아야 합니다.")
+    frame = ratings.reset_index(drop=True)
+    rng = np.random.default_rng(random_state)
+    val_mask = np.zeros(len(frame), dtype=bool)
+    test_mask = np.zeros(len(frame), dtype=bool)
+    for positions in frame.groupby("user_id", sort=False).indices.values():
+        n = len(positions)
+        if n <= 1:
+            continue
+        n_test = min(n - 1, max(1, int(n * test_size)))
+        n_val = min(n - 1 - n_test, max(0, int(n * val_size)))
+        if n - n_test > 1 and n_val == 0:
+            n_val = 1
+        chosen = rng.choice(positions, n_test + n_val, replace=False)
+        test_mask[chosen[:n_test]] = True
+        if n_val:
+            val_mask[chosen[n_test:]] = True
+    train_mask = ~(val_mask | test_mask)
+    return frame.loc[train_mask].copy(), frame.loc[val_mask].copy(), frame.loc[test_mask].copy()
 
 
 class _RidgeModel:
@@ -32,14 +74,14 @@ class _RidgeModel:
 
 
 class ContentBasedCF:
-    """영화 내용과 이 유저의 학습 평점으로 평점을 예측한다.
+    """아이템 내용과 이 유저의 학습 평점으로 평점을 예측한다.
 
     하이브리드 조합을 위해 ItemBasedCF와 같은 공개 API를 제공한다.
     학습 평점 컬럼: user_id, item_id, rating. timestamp가 있으면 최근 평점에 더 큰 가중을 준다.
-    영화 벡터는 movies.dat 또는 data/processed/movies_multihot_data.npz 를 쓴다.
+    아이템 벡터는 movies.dat, movies_multihot_data.npz, 또는 book_content.npz 를 쓴다.
     유저 프로필·Ridge는 fit의 학습 평점만으로 다시 계산한다.
-    다른 유저가 그 영화에 준 평점은 피처로 쓰지 않는다.
-    예측 점수는 학습 평점 범위(MovieLens면 1~5)로 자른다.
+    다른 유저가 그 아이템에 준 평점은 피처로 쓰지 않는다.
+    예측 점수는 학습 평점 범위(MovieLens·Goodbooks면 1~5)로 자른다.
     """
 
     def __init__(
@@ -53,7 +95,7 @@ class ContentBasedCF:
         """콘텐츠 기반 모델을 생성한다.
 
         입력:
-            item_features_path: 영화 장르 npz 경로. movies.dat이 없을 때 쓴다.
+            item_features_path: 영화 장르 npz 또는 book_content.npz 경로.
             movies_path: movies.dat 경로. 있으면 장르·제목·연도를 여기서 만든다.
             users_path: users.dat 경로. 있으면 성별·나이·직업을 상호작용 피처로 쓴다.
             ridge_alpha: Ridge 규제 세기.
@@ -93,20 +135,21 @@ class ContentBasedCF:
         norms[norms == 0] = 1.0
         self.item_tfidf_ = tfidf / norms
 
-        years = np.array([parse_year(title) for title in self.titles_], dtype=float)
-        year_mean = np.nanmean(years) if np.isfinite(years).any() else 0.0
-        years = np.where(np.isfinite(years), years, year_mean)
-        year_std = np.nanstd(years)
-        if not np.isfinite(year_std) or year_std < 1e-12:
-            year_std = 1.0
-        self.year_norm_ = ((years - year_mean) / year_std).astype(float)
+        if getattr(self, "year_norm_", None) is None:
+            years = np.array([parse_year(title) for title in self.titles_], dtype=float)
+            year_mean = np.nanmean(years) if np.isfinite(years).any() else 0.0
+            years = np.where(np.isfinite(years), years, year_mean)
+            year_std = np.nanstd(years)
+            if not np.isfinite(year_std) or year_std < 1e-12:
+                year_std = 1.0
+            self.year_norm_ = ((years - year_mean) / year_std).astype(float)
 
         frame["user_id"] = frame["user_id"].astype(int)
         frame["item_id"] = frame["item_id"].astype(int)
         frame["rating"] = frame["rating"].astype(float)
         frame = frame[frame["item_id"].isin(self.item_index_)].copy()
         if frame.empty:
-            raise ValueError("학습 평점에 영화 벡터와 맞는 item_id가 없습니다.")
+            raise ValueError("학습 평점에 아이템 벡터와 맞는 item_id가 없습니다.")
 
         self.global_mean_ = float(frame["rating"].mean())
         self.user_means_ = frame.groupby("user_id")["rating"].mean().to_dict()
@@ -140,6 +183,12 @@ class ContentBasedCF:
         profile_norms = np.linalg.norm(profiles, axis=1, keepdims=True)
         profile_norms[profile_norms == 0] = 1.0
         self.user_profiles_ = profiles / profile_norms
+        self._build_extra_user_profiles(
+            u_rows,
+            i_rows,
+            frame["weighted_residual"].to_numpy(),
+            frame["recency_w"].to_numpy(),
+        )
 
         self._load_user_demographics()
         self.ridge_ = self._fit_ridge_batched(
@@ -174,8 +223,59 @@ class ContentBasedCF:
         coef_aug = np.linalg.solve(xtx, xty)
         return _RidgeModel(coef_aug[1:], coef_aug[0])
 
+    def _reset_extra_item_features(self):
+        """책 전용 피처를 비운다. 영화 경로에서 이전 값이 남지 않게 한다."""
+        self.year_norm_ = None
+        self.item_plot_ = None
+        self.item_numeric_ = None
+        self.author_csr_ = None
+        self.user_plot_ = None
+        self.user_numeric_ = None
+        self.user_author_csr_ = None
+
+    def _csr_from_npz(self, loaded, prefix):
+        """npz에 저장된 CSR 구성 요소를 희소행렬로 복원한다."""
+        keys = (f"{prefix}_data", f"{prefix}_indices", f"{prefix}_indptr", f"{prefix}_shape")
+        if not all(key in loaded for key in keys):
+            return None
+        return csr_matrix(
+            (loaded[f"{prefix}_data"], loaded[f"{prefix}_indices"], loaded[f"{prefix}_indptr"]),
+            shape=tuple(loaded[f"{prefix}_shape"]),
+        )
+
+    def _load_book_content(self, loaded):
+        """Goodbooks book_content.npz에서 장르·작가·줄거리·수치 특성을 읽는다."""
+        self.item_ids_ = np.asarray(loaded["book_ids"])
+        self.titles_ = np.asarray(loaded["titles"]) if "titles" in loaded else np.array([""] * len(self.item_ids_))
+        genre_csr = self._csr_from_npz(loaded, "genres")
+        if genre_csr is None:
+            raise ValueError("book_content.npz에 장르 희소행렬이 없습니다.")
+        self.item_multihot_ = (genre_csr.toarray() > 1e-12).astype(float)
+        if "genre_names" in loaded:
+            self.genre_cols_ = [str(name) for name in loaded["genre_names"]]
+        else:
+            self.genre_cols_ = [f"genre_{j}" for j in range(self.item_multihot_.shape[1])]
+        self.author_csr_ = self._csr_from_npz(loaded, "authors")
+        if self.author_csr_ is not None:
+            self.author_csr_ = normalize(self.author_csr_.astype(np.float32), norm="l2", axis=1)
+        if "plot_embeddings" in loaded:
+            plot = np.asarray(loaded["plot_embeddings"], dtype=np.float32)
+            norms = np.linalg.norm(plot, axis=1, keepdims=True)
+            norms[norms == 0] = 1.0
+            self.item_plot_ = plot / norms
+        if "numeric_features" in loaded:
+            numeric = np.asarray(loaded["numeric_features"], dtype=float)
+            if numeric.ndim == 1:
+                numeric = numeric[:, None]
+            self.item_numeric_ = numeric
+            if numeric.shape[1] >= 2:
+                self.year_norm_ = numeric[:, 1].astype(float)
+            elif numeric.shape[1] == 1:
+                self.year_norm_ = numeric[:, 0].astype(float)
+
     def _load_item_content(self):
-        """movies.dat이 있으면 그걸 쓰고, 없으면 팀원 npz를 쓴다."""
+        """movies.dat이 있으면 그걸 쓰고, 없으면 영화/책 npz를 쓴다."""
+        self._reset_extra_item_features()
         if self.movies_path is not None and self.movies_path.exists():
             movies = pd.read_csv(
                 self.movies_path,
@@ -198,17 +298,46 @@ class ContentBasedCF:
             self.item_multihot_ = multi_hot
         elif self.item_features_path.exists():
             loaded = np.load(self.item_features_path, allow_pickle=True)
-            self.item_ids_ = np.asarray(loaded["movie_ids"])
-            self.titles_ = np.asarray(loaded["titles"])
-            self.genre_cols_ = list(loaded["classes"])
-            item_vecs = np.asarray(loaded["multi_hot_norm"], dtype=float)
-            self.item_multihot_ = (item_vecs > 1e-12).astype(float)
+            if "book_ids" in loaded:
+                self._load_book_content(loaded)
+            else:
+                self.item_ids_ = np.asarray(loaded["movie_ids"])
+                self.titles_ = np.asarray(loaded["titles"])
+                self.genre_cols_ = list(loaded["classes"])
+                item_vecs = np.asarray(loaded["multi_hot_norm"], dtype=float)
+                self.item_multihot_ = (item_vecs > 1e-12).astype(float)
         else:
             raise FileNotFoundError(
-                "영화 데이터가 없습니다. movies.dat 또는 "
+                "아이템 데이터가 없습니다. movies.dat 또는 "
                 f"{self.item_features_path} 를 준비하세요."
             )
         self.item_index_ = {int(item_id): i for i, item_id in enumerate(self.item_ids_)}
+
+    def _build_extra_user_profiles(self, user_idx, item_idx, weighted_residual, recency_w):
+        """줄거리·수치·작가 취향 벡터를 train 평점만으로 만든다."""
+        n_users = len(self.user_ids_)
+        weights = weighted_residual.astype(float)
+        recency = np.asarray(recency_w, dtype=float)
+        if self.item_plot_ is not None:
+            profiles = np.zeros((n_users, self.item_plot_.shape[1]), dtype=np.float32)
+            np.add.at(profiles, user_idx, self.item_plot_[item_idx] * weights[:, None])
+            norms = np.linalg.norm(profiles, axis=1, keepdims=True)
+            norms[norms == 0] = 1.0
+            self.user_plot_ = profiles / norms
+        if self.item_numeric_ is not None:
+            profiles = np.zeros((n_users, self.item_numeric_.shape[1]), dtype=float)
+            weight_sum = np.zeros(n_users, dtype=float)
+            np.add.at(profiles, user_idx, self.item_numeric_[item_idx] * recency[:, None])
+            np.add.at(weight_sum, user_idx, recency)
+            weight_sum[weight_sum == 0] = 1.0
+            self.user_numeric_ = profiles / weight_sum[:, None]
+        if self.author_csr_ is not None:
+            pref = csr_matrix(
+                (weights, (user_idx, item_idx)),
+                shape=(n_users, self.author_csr_.shape[0]),
+            )
+            user_author = pref @ self.author_csr_
+            self.user_author_csr_ = normalize(user_author, norm="l2", axis=1)
 
     def _load_user_demographics(self):
         """users.dat이 있으면 성별·나이·직업을 읽고, 없으면 인구통계 피처를 끈다."""
@@ -246,6 +375,20 @@ class ContentBasedCF:
         year = self.year_norm_[item_idx][:, None]
         profile = self.user_profiles_[user_idx]
         parts = [tfidf, year, profile * tfidf]
+        if self.item_plot_ is not None and self.user_plot_ is not None:
+            item_plot = self.item_plot_[item_idx]
+            plot_cos = np.sum(self.user_plot_[user_idx] * item_plot, axis=1, keepdims=True)
+            parts.extend([item_plot, plot_cos])
+        if self.item_numeric_ is not None:
+            item_num = self.item_numeric_[item_idx]
+            parts.append(item_num)
+            if self.user_numeric_ is not None:
+                parts.append(item_num - self.user_numeric_[user_idx])
+        if self.author_csr_ is not None and self.user_author_csr_ is not None:
+            ua = self.user_author_csr_[user_idx]
+            ia = self.author_csr_[item_idx]
+            author_cos = np.asarray(ua.multiply(ia).sum(axis=1)).reshape(-1, 1)
+            parts.append(author_cos)
         if self.has_demo_:
             male = self.is_male_[user_idx][:, None]
             age = self.age_scaled_[user_idx][:, None]
@@ -258,11 +401,18 @@ class ContentBasedCF:
         if not hasattr(self, "ridge_"):
             raise ValueError("fit을 먼저 호출하세요.")
 
-    def _content_scores(self, user_idx, item_idx):
+    def _content_scores(self, user_idx, item_idx, batch_size=8192):
         """학습된 Ridge로 콘텐츠 점수를 계산한다."""
-        X = self._features_from_indices(np.asarray(user_idx), np.asarray(item_idx))
-        raw = self.user_mean_arr_[np.asarray(user_idx)] + self.ridge_.predict(X)
-        return np.clip(raw, *self.rating_range_)
+        user_idx = np.asarray(user_idx)
+        item_idx = np.asarray(item_idx)
+        n = len(user_idx)
+        out = np.empty(n, dtype=float)
+        for start in range(0, n, batch_size):
+            sl = slice(start, min(start + batch_size, n))
+            features = self._features_from_indices(user_idx[sl], item_idx[sl])
+            raw = self.user_mean_arr_[user_idx[sl]] + self.ridge_.predict(features)
+            out[sl] = np.clip(raw, *self.rating_range_)
+        return out
 
     def _contributors(self, user_idx, item_idx):
         """유저 취향과 영화가 같이 가진 장르 수를 센다."""
