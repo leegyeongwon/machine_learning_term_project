@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer, normalize
 from FlagEmbedding import BGEM3FlagModel
 
@@ -22,11 +23,18 @@ from FlagEmbedding import BGEM3FlagModel
 # w1, w2, w3, w4, w5는 하이퍼파라미터로, validation set을 나눠 실험(머신러닝 학습) 후에 가장 좋은 것을 채택해 test합니다.
 
 # 추가로 plot_embedding요소는 제대로 작동하는지 확인이 어렵습니다. 실험 후에 머신러닝 모델이 제대로 수렴하는지 보고 안되면 수정해야할 듯 합니다.
+
+# [변경] 평점을 Train/Validation/Test = 8:1:1로 분할.
+#       유저 선호 프로필은 데이터 누수를 막기 위해 Train 평점만으로 계산합니다.
+#       분할 방식은 협업 필터링 모델 쪽 코드와 완전히 동일해야 하므로
+#       RANDOM_STATE, 분할 함수, 분할 대상 DataFrame의 행 순서를 맞춰야 합니다.
 """
 
 # ============================================================
 # 1. 설정
 # ============================================================
+
+RANDOM_STATE = 42
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "data" / "processed"
@@ -36,9 +44,10 @@ BOOKS_URL = (
     "https://raw.githubusercontent.com/"
     "malcolmosh/goodbooks-10k-extended/master/books_enriched.csv"
 )
+# 협업 필터링 코드와 동일한 평점 원본 (분할 일치를 위해 반드시 같은 파일 사용)
 RATINGS_URL = (
     "https://raw.githubusercontent.com/"
-    "malcolmosh/goodbooks-10k-extended/master/ratings.csv"
+    "zygmuntz/goodbooks-10k/master/ratings.csv"
 )
 
 # 최종 결과 파일은 이 두 개
@@ -80,44 +89,17 @@ if missing_book_columns:
 if missing_rating_columns:
     raise ValueError(f"평점 데이터에 없는 열: {missing_rating_columns}")
 
-# ID와 평점 정리
+# 도서 ID 정리
 books_df["book_id"] = pd.to_numeric(
     books_df["book_id"], errors="coerce"
 )
-ratings_df["book_id"] = pd.to_numeric(
-    ratings_df["book_id"], errors="coerce"
-)
-ratings_df["user_id"] = pd.to_numeric(
-    ratings_df["user_id"], errors="coerce"
-)
-ratings_df["rating"] = pd.to_numeric(
-    ratings_df["rating"], errors="coerce"
-)
-
 books_df = books_df.dropna(subset=["book_id"]).copy()
-ratings_df = ratings_df.dropna(
-    subset=["user_id", "book_id", "rating"]
-).copy()
-
 books_df["book_id"] = books_df["book_id"].astype(np.int64)
-ratings_df["book_id"] = ratings_df["book_id"].astype(np.int64)
-ratings_df["user_id"] = ratings_df["user_id"].astype(np.int64)
 
-ratings_df = ratings_df[
-    ratings_df["rating"].between(1, 5)
-].copy()
-
-# 도서 데이터에 존재하는 책의 평점만 사용
-valid_book_ids = set(books_df["book_id"])
-ratings_df = ratings_df[
-    ratings_df["book_id"].isin(valid_book_ids)
-].copy()
-
-# 같은 유저가 같은 책을 여러 번 평가했다면 평균 사용
-ratings_df = (
-    ratings_df.groupby(["user_id", "book_id"], as_index=False)
-    ["rating"].mean()
-)
+# [중요] ratings_df는 협업 필터링 코드와 분할이 같아야 하므로
+# 필터링, 중복 제거, 정렬 등 어떤 가공도 하지 않고 원본 그대로 둡니다.
+# (train_test_split은 행 개수와 순서만 보고 섞기 때문)
+ratings_df = ratings_df[["user_id", "book_id", "rating"]]
 
 # 인덱스 매핑을 일관되게 유지
 books_df = (
@@ -129,15 +111,56 @@ books_df = (
 book_ids = books_df["book_id"].to_numpy(dtype=np.int64)
 user_ids = np.sort(ratings_df["user_id"].unique()).astype(np.int64)
 
+# 협업 필터링 코드와 인덱스 순서가 같은지 확인 (결과를 합칠 때 필요)
+cf_book_ids = np.sort(ratings_df["book_id"].unique()).astype(np.int64)
+if not np.array_equal(book_ids, cf_book_ids):
+    raise ValueError(
+        "도서 목록이 협업 필터링 코드의 book_ids와 다릅니다. "
+        f"책 데이터 {len(book_ids):,}권 vs 평점 등장 도서 {len(cf_book_ids):,}권. "
+        "책 데이터와 평점 데이터의 도서 집합을 맞춘 뒤 다시 실행하세요."
+    )
+
 book_to_idx = {book_id: i for i, book_id in enumerate(book_ids)}
 user_to_idx = {user_id: i for i, user_id in enumerate(user_ids)}
-
-ratings_df["book_idx"] = ratings_df["book_id"].map(book_to_idx)
-ratings_df["user_idx"] = ratings_df["user_id"].map(user_to_idx)
 
 print(f"도서 수: {len(book_ids):,}")
 print(f"유저 수: {len(user_ids):,}")
 print(f"평점 수: {len(ratings_df):,}")
+
+
+# ============================================================
+# 2-1. Train / Validation / Test 분할 (8:1:1)
+# ============================================================
+
+def split_ratings(ratings):
+    """협업 필터링 쪽 코드와 동일한 방식의 8:1:1 분할."""
+    train_df, temp_df = train_test_split(
+        ratings,
+        test_size=0.2,
+        random_state=RANDOM_STATE,
+        shuffle=True,
+    )
+
+    validation_df, test_df = train_test_split(
+        temp_df,
+        test_size=0.5,
+        random_state=RANDOM_STATE,
+        shuffle=True,
+    )
+
+    return (
+        train_df.reset_index(drop=True),
+        validation_df.reset_index(drop=True),
+        test_df.reset_index(drop=True),
+    )
+
+
+train_df, validation_df, test_df = split_ratings(ratings_df)
+
+print("데이터 분할 완료")
+print(f"Train: {len(train_df):,}")
+print(f"Validation: {len(validation_df):,}")
+print(f"Test: {len(test_df):,}")
 
 
 # ============================================================
@@ -197,6 +220,7 @@ def add_sparse(data_dict, prefix, matrix):
 
 # ============================================================
 # 4. 도서별 콘텐츠 특성
+#    (평점을 사용하지 않는 아이템 측 특성이므로 전체 도서 대상으로 계산)
 # ============================================================
 
 n_books = len(books_df)
@@ -296,7 +320,7 @@ if len(valid_plot_indices) > 0:
     model = BGEM3FlagModel(
         "BAAI/bge-m3",
         use_fp16=True,
-        devices=["cuda:0"] 
+        devices=["cuda:0"]
     )
 
     valid_descriptions = [
@@ -369,33 +393,26 @@ print(f"도서 콘텐츠 저장 완료: {BOOK_CONTENT_PATH}")
 
 
 # ============================================================
-# 5. 유저별 선호 프로필
+# 5. 유저별 선호 프로필 (Train 평점만 사용)
 # ============================================================
-
-# 평점 중심화 (Centering: 3점 기준)
-ratings_df["adjusted_rating"] = (
-    ratings_df["rating"] - 3.0
-).astype(np.float32)
-
-user_idx = ratings_df["user_idx"].to_numpy(dtype=np.int64)
-book_idx = ratings_df["book_idx"].to_numpy(dtype=np.int64)
-adjusted = ratings_df["adjusted_rating"].to_numpy(dtype=np.float32)
 
 n_users = len(user_ids)
 
-ratings_adjusted = csr_matrix(
-    (adjusted, (user_idx, book_idx)),
-    shape=(n_users, n_books),
-    dtype=np.float32,
-)
+# 평점 중심화 (Centering: 3점 기준)
+train_user_idx = train_df["user_id"].map(user_to_idx).to_numpy(dtype=np.int64)
+train_book_idx = train_df["book_id"].map(book_to_idx).to_numpy(dtype=np.int64)
+train_adjusted = (
+    train_df["rating"].to_numpy(dtype=np.float32) - 3.0
+).astype(np.float32)
 
-rating_strength = csr_matrix(
-    (np.abs(adjusted), (user_idx, book_idx)),
+ratings_adjusted = csr_matrix(
+    (train_adjusted, (train_user_idx, train_book_idx)),
     shape=(n_users, n_books),
     dtype=np.float32,
 )
 
 # 3점 초과 평점만 선호도에 반영
+# 4점은 가중치 1, 5점은 가중치 2
 preference_weights = ratings_adjusted.maximum(0).tocsr()
 
 # ---------- 5-1. 장르 프로필 ----------
@@ -433,8 +450,6 @@ else:
 
 # 평점 3점 초과인 책만 선호 프로필에 반영
 # 4점은 가중치 1, 5점은 가중치 2
-preference_weights = ratings_adjusted.maximum(0).tocsr()
-
 # 책의 특징값과 같은 0~1 범위에서 사용자 선호값 계산
 numeric_profiles = np.zeros((n_users, 2), dtype=np.float32)
 
@@ -469,7 +484,7 @@ for feature_idx, missing_mask in enumerate(
     # 유사도 계산 시에 책의 페이지, 연도랑 유저 선호 페이지, 연도랑 뺀 후에 절댓값 취하는 방법이 있습니다.
     # 작을 수록 좋습니다
 
-# ---------- 5-5. 유저 프로필을 하나의 파일에 저장 ----------
+# ---------- 5-5. 유저 프로필 + 분할 데이터를 하나의 파일에 저장 ----------
 
 user_profiles = {
     "user_ids": user_ids,
@@ -478,6 +493,24 @@ user_profiles = {
     "numeric_feature_names": np.array(["pages", "publish_year"]),
     "numeric_profiles": numeric_profiles,
     "plot_profiles": user_plot_profiles,
+
+    # Train 원본 평점
+    "train_user_ids": train_df["user_id"].to_numpy(),
+    "train_book_ids": train_df["book_id"].to_numpy(),
+    "train_ratings": train_df["rating"].to_numpy(),
+
+    # Validation 원본 평점
+    "validation_user_ids": validation_df["user_id"].to_numpy(),
+    "validation_book_ids": validation_df["book_id"].to_numpy(),
+    "validation_ratings": validation_df["rating"].to_numpy(),
+
+    # Test 원본 평점
+    "test_user_ids": test_df["user_id"].to_numpy(),
+    "test_book_ids": test_df["book_id"].to_numpy(),
+    "test_ratings": test_df["rating"].to_numpy(),
+
+    # 재현성을 위한 랜덤 시드
+    "random_state": np.asarray(RANDOM_STATE),
 }
 
 add_sparse(
@@ -491,3 +524,41 @@ np.savez_compressed(USER_PROFILES_PATH, **user_profiles)
 print(f"유저 프로필 저장 완료: {USER_PROFILES_PATH}")
 
 print("전처리 완료: 최종 결과 파일 2개 생성")
+
+
+# ============================================================
+# 6. 협업 필터링 결과 파일과 분할이 같은지 검증
+# ============================================================
+
+CF_PATH = OUTPUT_DIR / "book_item_user_data.npz"
+
+if CF_PATH.exists():
+    with np.load(CF_PATH, allow_pickle=False) as cf:
+        checks = {
+            "user_ids": (user_ids, cf["user_ids"]),
+            "book_ids": (book_ids, cf["book_ids"]),
+        }
+        for name, df in [
+            ("train", train_df),
+            ("validation", validation_df),
+            ("test", test_df),
+        ]:
+            checks[f"{name}_user_ids"] = (
+                df["user_id"].to_numpy(), cf[f"{name}_user_ids"]
+            )
+            checks[f"{name}_book_ids"] = (
+                df["book_id"].to_numpy(), cf[f"{name}_book_ids"]
+            )
+            checks[f"{name}_ratings"] = (
+                df["rating"].to_numpy(), cf[f"{name}_ratings"]
+            )
+
+        all_ok = True
+        for key, (mine, theirs) in checks.items():
+            same = np.array_equal(mine, theirs)
+            all_ok &= same
+            print(f"{'OK  ' if same else 'DIFF'} {key}")
+
+    print("분할 일치" if all_ok else "분할 불일치: 위 DIFF 항목 확인 필요")
+else:
+    print(f"검증 생략: {CF_PATH} 가 없습니다 (협업 필터링 전처리를 먼저 실행하면 자동 비교됩니다)")
