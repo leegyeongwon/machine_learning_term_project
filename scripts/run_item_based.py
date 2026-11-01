@@ -20,7 +20,7 @@ from src.item_based import ItemBasedCF, split_by_user, validate_ratings
 
 
 def load_movielens(data_dir):
-    """:: 다중문자 구분자는 pandas Python 엔진, 제목은 Latin-1로 읽는다."""
+    """Python 엔진과 Latin-1 인코딩으로 :: 구분 파일 로딩."""
     ratings = pd.read_csv(data_dir / 'ratings.dat', sep='::', engine='python',
                           names=['user_id', 'item_id', 'rating', 'timestamp'],
                           encoding='latin-1')
@@ -37,7 +37,7 @@ def load_movielens(data_dir):
 
 
 def evaluate(model, test):
-    """전체 테스트를 평가하고 대체 예측까지 포함한 행별 근거를 남긴다."""
+    """대체 예측을 포함한 전체 평가 지표와 행별 예측 반환."""
     details = [model.predict_with_details(u, i)
                for u, i in test[['user_id', 'item_id']].itertuples(index=False, name=None)]
     predictions = test[['user_id', 'item_id', 'rating']].reset_index(drop=True).copy()
@@ -55,14 +55,14 @@ def evaluate(model, test):
 
 
 def file_hash(path):
-    """원본 데이터 재현성 확인을 위한 SHA-256을 계산한다."""
+    """원본 파일 SHA-256 계산."""
     with path.open('rb') as handle:
         return hashlib.file_digest(handle, 'sha256').hexdigest()
 
 
 def main():
-    """K 비교는 동일 holdout 진단용이며 최적 K의 독립 최종 평가가 아니다."""
-    # Windows 사용자 캐시 권한과 무관하게 프로젝트 내부에 그래프 캐시 저장.
+    """동일 holdout에서 K별 평가 및 추천 결과 저장."""
+    # 그래프 캐시 경로 설정
     os.environ.setdefault('MPLCONFIGDIR', str(ROOT / '.venv/matplotlib-cache'))
     import matplotlib
     matplotlib.use('Agg')
@@ -100,7 +100,7 @@ def main():
                'input_sha256': {name: file_hash(args.data_dir / name) for name in
                                 ['ratings.dat', 'movies.dat', 'users.dat']}}
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)
-    # 동일 분할의 정확한 재생성을 위해 테스트 쌍과 원본 평점/타임스탬프 저장.
+    # 분할 재현용 테스트 평점·타임스탬프 저장
     test.to_csv(args.output_dir / 'test_split.csv', index=False)
     rows = []
     for k in args.k_values:

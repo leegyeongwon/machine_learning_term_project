@@ -1,4 +1,4 @@
-"""희소 행렬 기반 Item-based CF. 데이터셋의 제목/장르 로직과 독립적이다."""
+"""메타데이터와 독립적인 희소 행렬 기반 Item-based CF."""
 
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ from sklearn.neighbors import NearestNeighbors
 
 
 def validate_ratings(ratings):
-    """공통 입력 컬럼, 양수 유한 평점, 중복 사용자-아이템을 검증한다."""
+    """필수 컬럼, 양수 유한 평점, 사용자-아이템 중복 검증."""
     required = ['user_id', 'item_id', 'rating']
     if not set(required).issubset(ratings.columns) or ratings.empty:
         raise ValueError('비어 있지 않은 user_id, item_id, rating 데이터가 필요합니다.')
@@ -21,7 +21,7 @@ def validate_ratings(ratings):
 
 
 def split_by_user(ratings, test_size=0.2, random_state=42):
-    """사용자별 무작위 holdout. 단일 평점 사용자는 학습에만 남긴다."""
+    """사용자별 무작위 holdout. 평점이 하나면 학습에만 배정."""
     validate_ratings(ratings)
     if not 0 < test_size < 1:
         raise ValueError('test_size는 0과 1 사이여야 합니다.')
@@ -36,11 +36,11 @@ def split_by_user(ratings, test_size=0.2, random_state=42):
 
 
 class ItemBasedCF:
-    """Cosine KNN의 이웃 중 사용자가 평가한 항목만 가중평균한다.
+    """Cosine KNN 이웃 중 사용자가 평가한 항목의 가중평균 예측.
 
     n_neighbors: 대상 아이템의 전체 이웃 수(기본 30).
-    batch_size: KNN 조회 배치 크기. 전체 아이템 제곱 행렬 보관을 피한다.
-    n_jobs: sklearn 병렬 작업 수. 기본 1로 메모리 급증을 방지한다.
+    batch_size: KNN 조회 배치 크기.
+    n_jobs: sklearn 병렬 작업 수(기본 1).
     """
 
     def __init__(self, n_neighbors=30, batch_size=128, n_jobs=1):
@@ -53,7 +53,7 @@ class ItemBasedCF:
         self.n_jobs = n_jobs
 
     def fit(self, train_ratings):
-        """학습 평점만 CSR 사용자×아이템 행렬 및 전치 행렬로 변환한다."""
+        """Train 평점으로 CSR 사용자×아이템 행렬과 전치 행렬 생성."""
         validate_ratings(train_ratings)
         frame = train_ratings
         self.user_ids_ = pd.Index(frame.user_id.unique())
@@ -84,12 +84,12 @@ class ItemBasedCF:
         return self
 
     def _check_fit(self):
-        """미학습 모델 사용을 명확한 오류로 알린다."""
+        """미학습 모델 호출 검사."""
         if not hasattr(self, 'knn_'):
             raise ValueError('fit을 먼저 호출하세요.')
 
     def predict_with_details(self, user_id, item_id):
-        """예측값, CF/대체 방식, 기여 이웃 수를 반환한다."""
+        """예상 평점, CF/대체 방식, 기여 이웃 수 반환."""
         self._check_fit()
         u = self.user_ids_.get_indexer([user_id])[0]
         i = self.item_ids_.get_indexer([item_id])[0]
@@ -108,11 +108,11 @@ class ItemBasedCF:
         return self.global_mean_, 'global_mean', 0
 
     def predict(self, user_id, item_id):
-        """Hybrid 조합에 사용할 단일 실수 평점을 반환한다."""
+        """단일 예상 평점 반환."""
         return self.predict_with_details(user_id, item_id)[0]
 
     def recommend(self, user_id, top_n=10):
-        """학습에서 미평가한 아이템을 점수 내림차순으로 반환한다.
+        """Train에서 미평가한 아이템의 Top-N 반환.
 
         반환 DataFrame: item_id, predicted_rating, method, n_contributors.
         제목은 데이터셋 어댑터에서 별도로 결합한다.
