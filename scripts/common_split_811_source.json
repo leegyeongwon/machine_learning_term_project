@@ -1,0 +1,9 @@
+{
+  "source_url": "https://github.com/leegyeongwon/machine_learning_term_project/blob/preprocessing/preprocessing_and_data/movielens-1m/preprocess_item_based.py",
+  "git_blob_sha": "ae227240c65d17ba47a932f6f7b397293062214f",
+  "branch": "preprocessing",
+  "repository": "leegyeongwon/machine_learning_term_project",
+  "retrieved_date": "2026-11-01",
+  "local_path": "preprocessing_and_data/movielens-1m/preprocess_item_based.py",
+  "note": "GitHub 원문을 수정하지 않고 추가; cwd=data/raw/ml-1m에서 실행"
+}
