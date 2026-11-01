@@ -2,7 +2,7 @@
 
 - 영화 및 유저 평점 데이터: MovieLens: https://grouplens.org/datasets/movielens/1m/
 
- # preprocess_item_based.py 데이터 전처리
+# preprocess_item_based.py 데이터 전처리
 
 ### 1. 평점 데이터 분할
 - 전체 평점 데이터를 **Train : Validation : Test = 8 : 1 : 1** 비율로 분할
