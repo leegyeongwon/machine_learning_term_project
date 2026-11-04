@@ -30,6 +30,19 @@ def load_common_splits(npz_path):
     return parts
 
 
+def assert_identical_splits(left_path, right_path):
+    """두 NPZ의 train/validation/test 원점수 triple이 같은지 검증한다."""
+    left = load_common_splits(left_path)
+    right = load_common_splits(right_path)
+    triple = ['user_id', 'item_id', 'rating']
+    for name in left:
+        pd.testing.assert_frame_equal(
+            left[name].sort_values(triple).reset_index(drop=True),
+            right[name].sort_values(triple).reset_index(drop=True),
+        )
+    return left
+
+
 def source_splitter(source_path):
     """최상위 I/O 실행 없이 원문의 split_ratings 함수와 seed 반환."""
     tree = ast.parse(Path(source_path).read_text(encoding='utf-8'))
