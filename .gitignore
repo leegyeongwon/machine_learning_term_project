@@ -4,6 +4,11 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
+preprocessing_and_data/movielens-1m/links.csv
+preprocessing_and_data/movielens-1m/movies.csv
+preprocessing_and_data/movielens-1m/ratings.csv
+preprocessing_and_data/movielens-1m/tmdb_5000_movies.csv
+
 # Python virtual environment
 .venv/
 venv/
