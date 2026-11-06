@@ -1,0 +1,86 @@
+{
+  "script": "cross_domain_eval_usermean_plot_ridge.py",
+  "n_fit": 2175173,
+  "n_plot": 1024,
+  "ridge_alpha": 10.0,
+  "positive_coef": true,
+  "fit_split": "movie validation residual",
+  "eval": "movie test + book val+test",
+  "movie_mean": 3.5706832037430587,
+  "coefficients": {
+    "genre_cos": 0.616,
+    "plot_w_mean": 0.3146,
+    "plot_w_l2": 21.531,
+    "length_closeness": 0.0,
+    "year_closeness": 0.0
+  },
+  "intercept": -0.35461706683111294,
+  "pred_mean": 4.054894944335549,
+  "true_mean": 3.921107292175293,
+  "book_train_mean": 3.9195550557257484,
+  "rec_domain": "book",
+  "user_id": 13478,
+  "top_k": 10,
+  "metrics": [
+    {
+      "name": "영화 test (모델)",
+      "rmse": 0.9331292019812873,
+      "mae": 0.7187881714329836,
+      "pearson": 0.4661567884378178
+    },
+    {
+      "name": "영화 test (평균 보정)",
+      "rmse": 0.9331281796072258,
+      "mae": 0.7187252495977163,
+      "pearson": 0.4661567884378178
+    },
+    {
+      "name": "영화 test (평균 베이스라인)",
+      "rmse": 1.053843379020691,
+      "mae": 0.8358114361763,
+      "pearson": null
+    },
+    {
+      "name": "영화 test (유저 평균 베이스라인)",
+      "rmse": 0.944175124168396,
+      "mae": 0.7278792262077332,
+      "pearson": 0.4446926414966583
+    },
+    {
+      "name": "도서 val (모델)",
+      "rmse": 0.9031691275695608,
+      "mae": 0.6955737611730092,
+      "pearson": 0.4367956369301711
+    },
+    {
+      "name": "도서 test (모델)",
+      "rmse": 0.8998291120313788,
+      "mae": 0.6936671353400994,
+      "pearson": 0.43983537578112897
+    },
+    {
+      "name": "도서 val+test (모델)",
+      "rmse": 0.9015006666259158,
+      "mae": 0.6946204482565542,
+      "pearson": 0.4383141627289766
+    },
+    {
+      "name": "도서 val+test (평균 보정)",
+      "rmse": 0.8915193529957341,
+      "mae": 0.6987860052543904,
+      "pearson": 0.4383141627289766
+    },
+    {
+      "name": "도서 val+test (평균 베이스라인)",
+      "rmse": 0.9903293251991272,
+      "mae": 0.7740182876586914,
+      "pearson": null
+    },
+    {
+      "name": "도서 val+test (유저 평균 베이스라인)",
+      "rmse": 0.8931593894958496,
+      "mae": 0.7007134556770325,
+      "pearson": 0.43246370553970337
+    }
+  ]
+}
