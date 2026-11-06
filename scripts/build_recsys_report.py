@@ -81,12 +81,17 @@ def build_report(run,processed,test_log=None):
         ax.set(xlabel=label,ylabel='Validation error');ax.legend();ax.grid(alpha=.15)
     axes[1].set_xscale('log')
     fig.tight_layout();fig.savefig(run/'validation_curves.png',dpi=150);plt.close(fig)
-    git_status=subprocess.check_output(['git','status','--short'],cwd=ROOT).decode('utf-8',errors='replace')
+    git_read=lambda *args:subprocess.check_output(['git','--no-optional-locks',*args],cwd=ROOT).decode('utf-8',errors='replace').strip()
+    git_status=git_read('status','--short')
     (run/'git_status_final.txt').write_text(git_status,encoding='utf-8')
     provenance={str(p.relative_to(ROOT)):sha256(p) for p in [ROOT/'src/item_based.py',ROOT/'src/content_based.py',
                 ROOT/'src/hybrid.py',ROOT/'src/transfer_data.py',ROOT/'src/processed_validation.py',
-                ROOT/'scripts/run_full_recsys_pipeline.py',ROOT/'scripts/verify_recsys_run.py']}
+                ROOT/'scripts/run_full_recsys_pipeline.py',ROOT/'scripts/verify_recsys_run.py',Path(__file__).resolve()]}
     (run/'code_sha256.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
+    execution_provenance={'branch':git_read('branch','--show-current'),'head':git_read('rev-parse','HEAD'),
+        'hybrid_reference':git_read('rev-parse','origin/feature/hybrid'),'python':sys.version,
+        'git_status':git_status,'code_sha256':provenance,'reference_source':'local remote-tracking ref; no network lookup'}
+    (run/'execution_provenance.json').write_text(json.dumps(execution_provenance,ensure_ascii=False,indent=2),encoding='utf-8')
     test_status='자동 테스트 로그는 별도 확인.'
     if test_log is not None:
         text=Path(test_log).read_text(encoding='utf-8',errors='replace')
@@ -103,11 +108,11 @@ def build_report(run,processed,test_log=None):
         for s in ['train','validation','test']:split_rows.append({'domain':domain,'split':s,**stats[s]})
     report=f'''# 추천시스템 최종 실행 보고서 — 새 영화 NPZ 및 Goodbooks
 
-## 1. GitHub 및 로컬 확인
-로컬 브랜치 `feature/item-based`, HEAD `01f50ac` 보존. 앞선 GitHub 커넥터 조회에서 Item `01f50ac`, Content `8564a54`, preprocessing `a2e0741`, main `9127d33`을 확인했으며 로컬 origin 참조와 일치했음. Git fetch/checkout/commit/push/merge/PR 없음.
+## 1. 실행 코드 및 출처
+실행 시 로컬 브랜치는 `{execution_provenance['branch']}`, HEAD는 `{execution_provenance['head']}`이다. 비교 기준인 로컬 `origin/feature/hybrid`는 `{execution_provenance['hybrid_reference']}`이다. 커밋은 저장소 기준점이며 미커밋 변경을 포함한 실제 실행 파일은 `code_sha256.json`의 해시로 구분한다. Python과 Git 상태는 `execution_provenance.json`에 기록하였다. 보고서 생성 단계에서는 로컬 Git 정보를 조회하였으며 네트워크 조회나 브랜치 변경은 수행하지 않았다.
 
 ## 2. 실제 수정·생성 파일
-`src/transfer_data.py`, `src/processed_validation.py`, `scripts/run_full_recsys_pipeline.py`를 새 NPZ 구조에 맞게 확장함. 기존 `src/content_based.py`, `src/item_based.py`의 알고리즘을 어댑터에서 재사용함. `scripts/verify_recsys_run.py`, `scripts/build_recsys_report.py`, `docs/RECSYS_PIPELINE.md`와 관련 테스트·보고서 추가. 모델·전처리 원문과 기존 결과를 덮어쓰지 않았음.
+기존 Hybrid 실행기와 모델·데이터 어댑터를 사용하였다. 이번 재현 검증에서는 알고리즘과 데이터 처리 코드를 변경하지 않고 `scripts/build_recsys_report.py`의 실행 출처 기록 부분만 수정하였다. 수정 전 보고서 생성기는 상위 재현 결과 폴더의 `backups/build_recsys_report_before.py`에 보존하였다. 새 결과는 별도 출력 폴더에 생성하며 기존 모델·전처리 원문·실험 결과를 덮어쓰지 않는다.
 
 ## 3. Hybrid 구현 및 선택
 `예측 = a × Item + (1-a) × Content`. Validation MAE 우선, RMSE 동률 처리, a=0~1의 0.01 간격 101개 후보. 선택 a={selection['hybrid_alpha']:.2f}. 예를 들어 Item=4, Content=3이면 {4*selection['hybrid_alpha']+3*(1-selection['hybrid_alpha']):.2f}점. 선택 K={selection['k']}, Ridge alpha={selection['ridge_alpha']:g}. 세 모델 모두 동일 Train으로 학습하며 Train+Validation 재학습 없음.
@@ -200,7 +205,7 @@ cold-start와 fallback 그룹별 건수·지표는 각 도메인의 `evaluation_
 원본 CSV의 평점 수·외부 링크 정확성과 도서 원본 행 순서의 분할 재현은 원본 파일 부재로 미검증. 저장 줄거리 프로필은 64명 표본 검사이며 전체 사용자 증명이 아님. 기존 전처리 파일의 미래 연도 원인은 원문 출판일 확인 없이 단정하지 않았음. 원시 1,024차원 Ridge·별도 Ridge stacking·엄격한 Item zero-shot·신뢰구간·의미 기반 장르 매핑 ablation은 수행하지 않았음.
 
 ## 14. Git 변경 상태
-입력 NPZ 6개는 사용자가 추가한 파일이며 수정하지 않았음. 기존 1M NPZ도 SHA-256 동일. 기존 추적 파일 차이 없음. 새 모듈·보고서·결과와 기존 미추적 파일은 로컬에 남아 있음. commit/push/merge/PR 없음. 상세 상태는 `git_status_final.txt`, 실행 코드 해시는 `code_sha256.json` 참조.
+입력 NPZ 6개와 기존 1M NPZ의 실행 전후 SHA-256 일치는 `input_preservation.json`에서 확인한다. 실행 시 추적 파일과 미추적 파일의 상태는 `git_status_final.txt`에 기록하였다. HEAD만으로 미커밋 변경이 없는 상태라고 판단하지 않으며 실제 실행 코드는 `code_sha256.json`과 함께 확인한다. 이번 검증에서 허용된 소스 변경은 보고서 생성기의 출처 기록 부분이다.
 
 ## 수식과 실행
 `mean_u = 평균(Train/support 평점)`, `profile_u = normalize(Σ (r_ui-mean_u) content_i)`.
