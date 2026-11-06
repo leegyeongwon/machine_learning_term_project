@@ -265,6 +265,13 @@ for i, value in enumerate(publish_dates):
         if match:
             publish_year[i] = float(match.group(1))
 
+# 두 자리 연도(예: 75)가 2075로 해석되는 문제 보정: 기준 연도를 넘으면 100년 이전으로 되돌림
+MAX_VALID_YEAR = 2020  # 이 값보다 크면 세기 오류로 간주
+for i in range(len(publish_year)):
+    if np.isfinite(publish_year[i]) and publish_year[i] > MAX_VALID_YEAR:
+        publish_year[i] -= 100  # 2075 -> 1975
+
+
 year_missing = ~np.isfinite(publish_year)
 publish_year[year_missing] = np.nan
 
