@@ -1,9 +1,9 @@
-"""영화로 학습한 선형 모델 -> 영화 Test / 도서 val+test 평가 + 유저별 Top-K 추천
+"""영화로 학습한 선형 모델 -> 영화 Test / 도서 Test 평가 + 유저별 Top-K 추천
 
 원본 scripts/cross_domain_eval.py 복제. 바꾼 점 하나:
   예측 = 그 유저 train 평균 + b + w·유사도
   w는 영화 validation에서 (평점 − 영화유저 평균) 잔차를 맞춘다.
-  같은 도메인 채점은 영화 test, 교차 도메인은 도서 val+test.
+  같은 도메인 채점은 영화 test, 교차 도메인은 도서 test.
   책에서는 책 유저 train 평균을 더한다. w는 그대로.
 
 실행: python scripts/cross_domain_eval_usermean.py
@@ -223,39 +223,32 @@ def main():
     print("계수:", coefs, "b =", round(float(model.intercept_), 3))
     print("학습 행:", len(y_fit), "(영화 validation)")
 
-    # 2) 영화 test(같은 도메인) / 도서 val+test(교차 도메인). w는 고정.
+    # 2) 영화 Test / 도서 Test. w는 고정, 평균은 각 도메인 유저 train.
     b_mean = train_user_means(book)
     X_mt, y_mt, u_mt = build_features(movie, "test")
-    X_bv, y_bv, u_bv = build_features(book, "validation")
     X_bt, y_bt, u_bt = build_features(book, "test")
     pred_mt = m_mean[u_mt] + model.predict(X_mt)
-    pred_bv = b_mean[u_bv] + model.predict(X_bv)
     pred_bt = b_mean[u_bt] + model.predict(X_bt)
-    y_be = np.concatenate([y_bv, y_bt])
-    pred_be = np.concatenate([pred_bv, pred_bt])
     movie_mean = float(movie["profile"]["train_ratings"].mean())
     book_mean = float(book["profile"]["train_ratings"].mean())
     shift_mt = pred_mt - pred_mt.mean() + movie_mean
-    shift_be = pred_be - pred_be.mean() + book_mean
-    user_mean_base = np.concatenate([b_mean[u_bv], b_mean[u_bt]]).astype(np.float32)
+    shift_bt = pred_bt - pred_bt.mean() + book_mean
 
-    print("\n[평균 편향 확인] (예측 평균 / 실제 평균 / 도메인 Train 평균)")
-    print(f"  영화 test: {pred_mt.mean():.3f} / {y_mt.mean():.3f} / {movie_mean:.3f}")
-    print(f"  도서 val+test: {pred_be.mean():.3f} / {y_be.mean():.3f} / {book_mean:.3f}")
+    print("\n[평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)")
+    print(f"  영화: {pred_mt.mean():.3f} / {y_mt.mean():.3f} / {movie_mean:.3f}")
+    print(f"  도서: {pred_bt.mean():.3f} / {y_bt.mean():.3f} / {book_mean:.3f}")
 
     metric_rows = [
-        {"name": "영화 test (모델)", **metrics(y_mt, pred_mt)},
-        {"name": "영화 test (평균 보정)", **metrics(y_mt, shift_mt)},
-        {"name": "영화 test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
-        {"name": "영화 test (유저 평균 베이스라인)", **metrics(y_mt, m_mean[u_mt].astype(np.float32))},
-        {"name": "도서 val (모델)", **metrics(y_bv, pred_bv)},
-        {"name": "도서 test (모델)", **metrics(y_bt, pred_bt)},
-        {"name": "도서 val+test (모델)", **metrics(y_be, pred_be)},
-        {"name": "도서 val+test (평균 보정)", **metrics(y_be, shift_be)},
-        {"name": "도서 val+test (평균 베이스라인)", **metrics(y_be, np.full_like(y_be, book_mean))},
-        {"name": "도서 val+test (유저 평균 베이스라인)", **metrics(y_be, user_mean_base)},
+        {"name": "영화 Test (모델)", **metrics(y_mt, pred_mt)},
+        {"name": "영화 Test (모델, 평균 보정)", **metrics(y_mt, shift_mt)},
+        {"name": "영화 Test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
+        {"name": "영화 Test (유저 평균 베이스라인)", **metrics(y_mt, m_mean[u_mt].astype(np.float32))},
+        {"name": "도서 Test (모델)", **metrics(y_bt, pred_bt)},
+        {"name": "도서 Test (모델, 평균 보정)", **metrics(y_bt, shift_bt)},
+        {"name": "도서 Test (평균 베이스라인)", **metrics(y_bt, np.full_like(y_bt, book_mean))},
+        {"name": "도서 Test (유저 평균 베이스라인)", **metrics(y_bt, b_mean[u_bt].astype(np.float32))},
     ]
-    print("\n[영화 validation 잔차 학습 → 영화 test / 도서 val+test]")
+    print("\n[영화(validation) 잔차 학습 결과 비교]")
     for row in metric_rows:
         report(row["name"], row)
 
@@ -280,12 +273,12 @@ def main():
             "script": "cross_domain_eval_usermean.py",
             "n_fit": int(len(y_fit)),
             "fit_split": "movie validation residual",
-            "eval": "movie test + book val+test",
+            "eval": "movie test + book test",
             "movie_mean": movie_mean,
             "coefficients": coefs,
             "intercept": float(model.intercept_),
-            "pred_mean": float(pred_be.mean()),
-            "true_mean": float(y_be.mean()),
+            "pred_mean": float(pred_bt.mean()),
+            "true_mean": float(y_bt.mean()),
             "book_train_mean": book_mean,
             "rec_domain": REC_DOMAIN,
             "user_id": int(user_id),
@@ -300,39 +293,37 @@ if __name__ == "__main__":
 
 """
 예측 = 유저 train 평균 + b + w·유사도
-계수: {'genre_cos': 0.639, 'plot_cos': 0.0, 'length_closeness': 0.0, 'year_closeness': 0.0} b = -0.328
+계수: {'genre_cos': 0.641, 'plot_cos': 0.0, 'length_closeness': 0.0, 'year_closeness': 0.0} b = -0.328
 학습 행: 2175173 (영화 validation)
 
-[평균 편향 확인] (예측 평균 / 실제 평균 / 도메인 Train 평균)
-  영화 test: 3.570 / 3.572 / 3.571
-  도서 val+test: 4.022 / 3.921 / 3.920
+[평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)
+  영화: 3.570 / 3.571 / 3.571
+  도서: 4.022 / 3.921 / 3.920
 /Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval_usermean.py:168: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   corr = pearsonr(y_pred, y_true)[0] if np.std(y_pred) > 0 else float("nan")
 
-[영화 validation 잔차 학습 → 영화 test / 도서 val+test]
-  영화 test (모델)                 RMSE=0.9358  MAE=0.7215  pearson=0.4607
-  영화 test (평균 보정)              RMSE=0.9358  MAE=0.7214  pearson=0.4607
-  영화 test (평균 베이스라인)           RMSE=1.0538  MAE=0.8358  pearson=nan
-  영화 test (유저 평균 베이스라인)        RMSE=0.9442  MAE=0.7279  pearson=0.4447
-  도서 val (모델)                  RMSE=0.9004  MAE=0.6966  pearson=0.4332
-  도서 test (모델)                 RMSE=0.8970  MAE=0.6946  pearson=0.4363
-  도서 val+test (모델)             RMSE=0.8987  MAE=0.6956  pearson=0.4348
-  도서 val+test (평균 보정)          RMSE=0.8930  MAE=0.7003  pearson=0.4348
-  도서 val+test (평균 베이스라인)       RMSE=0.9903  MAE=0.7740  pearson=nan
-  도서 val+test (유저 평균 베이스라인)    RMSE=0.8932  MAE=0.7007  pearson=0.4325
+[영화(validation) 잔차 학습 결과 비교]
+  영화 Test (모델)                 RMSE=0.9360  MAE=0.7216  pearson=0.4607
+  영화 Test (모델, 평균 보정)          RMSE=0.9360  MAE=0.7215  pearson=0.4607
+  영화 Test (평균 베이스라인)           RMSE=1.0541  MAE=0.8360  pearson=nan
+  영화 Test (유저 평균 베이스라인)        RMSE=0.9443  MAE=0.7279  pearson=0.4449
+  도서 Test (모델)                 RMSE=0.8971  MAE=0.6946  pearson=0.4363
+  도서 Test (모델, 평균 보정)          RMSE=0.8913  MAE=0.6992  pearson=0.4363
+  도서 Test (평균 베이스라인)           RMSE=0.9893  MAE=0.7733  pearson=nan
+  도서 Test (유저 평균 베이스라인)        RMSE=0.8917  MAE=0.6999  pearson=0.4336
 
 [book 추천 Top-10] 유저 13478
    item_id                           title  score  genre_cos  plot_cos  length_closeness  year_closeness
-0     6335               Oscar and Lucinda  3.704      0.820     0.731             0.979           0.796
-1     3465              Rich Man, Poor Man  3.704      0.820     0.629             0.950           0.965
-2      212                       Atonement  3.704      0.820     0.746             0.989           0.752
-3     2769  Z: A Novel of Zelda Fitzgerald  3.690      0.797     0.704             0.989           0.663
-4      198                The Color Purple  3.687      0.792     0.674             0.979           0.743
-5      689                 Beautiful Ruins  3.682      0.785     0.733             0.987           0.672
-6     2029                 On Chesil Beach  3.682      0.785     0.707             0.954           0.717
-7     5241                            Silk  3.682      0.785     0.688             0.939           0.796
-8     5050     The Story of Beautiful Girl  3.682      0.785     0.723             0.988           0.681
-9     6090            The Baker's Daughter  3.682      0.785     0.742             0.975           0.672
+0     6335               Oscar and Lucinda  3.705      0.820     0.731             0.979           0.796
+1     3465              Rich Man, Poor Man  3.705      0.820     0.629             0.950           0.965
+2      212                       Atonement  3.705      0.820     0.746             0.989           0.752
+3     2769  Z: A Novel of Zelda Fitzgerald  3.691      0.797     0.704             0.989           0.663
+4      198                The Color Purple  3.688      0.792     0.674             0.979           0.743
+5      689                 Beautiful Ruins  3.683      0.785     0.733             0.987           0.672
+6     2029                 On Chesil Beach  3.683      0.785     0.707             0.954           0.717
+7     5241                            Silk  3.683      0.785     0.688             0.939           0.796
+8     5050     The Story of Beautiful Girl  3.683      0.785     0.723             0.988           0.681
+9     6090            The Baker's Daughter  3.683      0.785     0.742             0.975           0.672
 
 저장: /Users/chaehee/Documents/school/ML/machine_learning_term_project/results/content_based/cross_domain_eval_usermean
 """

@@ -1,10 +1,10 @@
-"""영화로 학습한 Ridge -> 영화 Test / 도서 val+test 평가 + 유저별 Top-K 추천
+"""영화로 학습한 Ridge -> 영화 Test / 도서 Test 평가 + 유저별 Top-K 추천
 
 scripts/cross_domain_eval_usermean.py 복제. 바꾼 점:
   줄거리 코사인 1칸을, 정규화 후 원소곱 1024칸으로 펼친다.
   장르 코사인 / 길이 근접 / 연도 근접은 그대로다.
   w는 영화 validation 잔차로 비음수 Ridge (배치 X'X, w≥0, 절편은 자유)로 맞춘다.
-  같은 도메인 채점은 영화 test, 교차 도메인은 도서 val+test.
+  같은 도메인 채점은 영화 test, 교차 도메인은 도서 test.
 
 실행: python scripts/cross_domain_eval_usermean_plot_ridge.py
 결과는 results/content_based/cross_domain_eval_usermean_plot_ridge/ 에 저장한다.
@@ -304,39 +304,32 @@ def main():
     print(f"줄거리 칸: {n_plot}  alpha={RIDGE_ALPHA}  positive=True (절편 제외)")
     print("학습 행:", len(y_fit), "(영화 validation)")
 
-    # 2) 영화 test(같은 도메인) / 도서 val+test(교차 도메인). w는 고정.
+    # 2) 영화 Test / 도서 Test. w는 고정, 평균은 각 도메인 유저 train.
     b_mean = train_user_means(book)
     u_mt, i_mt, y_mt = split_rows(movie, "test")
-    u_bv, i_bv, y_bv = split_rows(book, "validation")
     u_bt, i_bt, y_bt = split_rows(book, "test")
     pred_mt = m_mean[u_mt] + predict_residual(model, movie, u_mt, i_mt)
-    pred_bv = b_mean[u_bv] + predict_residual(model, book, u_bv, i_bv)
     pred_bt = b_mean[u_bt] + predict_residual(model, book, u_bt, i_bt)
-    y_be = np.concatenate([y_bv, y_bt])
-    pred_be = np.concatenate([pred_bv, pred_bt])
     movie_mean = float(movie["profile"]["train_ratings"].mean())
     book_mean = float(book["profile"]["train_ratings"].mean())
     shift_mt = pred_mt - pred_mt.mean() + movie_mean
-    shift_be = pred_be - pred_be.mean() + book_mean
-    user_mean_base = np.concatenate([b_mean[u_bv], b_mean[u_bt]]).astype(np.float32)
+    shift_bt = pred_bt - pred_bt.mean() + book_mean
 
-    print("\n[평균 편향 확인] (예측 평균 / 실제 평균 / 도메인 Train 평균)")
-    print(f"  영화 test: {pred_mt.mean():.3f} / {y_mt.mean():.3f} / {movie_mean:.3f}")
-    print(f"  도서 val+test: {pred_be.mean():.3f} / {y_be.mean():.3f} / {book_mean:.3f}")
+    print("\n[평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)")
+    print(f"  영화: {pred_mt.mean():.3f} / {y_mt.mean():.3f} / {movie_mean:.3f}")
+    print(f"  도서: {pred_bt.mean():.3f} / {y_bt.mean():.3f} / {book_mean:.3f}")
 
     metric_rows = [
-        {"name": "영화 test (모델)", **metrics(y_mt, pred_mt)},
-        {"name": "영화 test (평균 보정)", **metrics(y_mt, shift_mt)},
-        {"name": "영화 test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
-        {"name": "영화 test (유저 평균 베이스라인)", **metrics(y_mt, m_mean[u_mt].astype(np.float32))},
-        {"name": "도서 val (모델)", **metrics(y_bv, pred_bv)},
-        {"name": "도서 test (모델)", **metrics(y_bt, pred_bt)},
-        {"name": "도서 val+test (모델)", **metrics(y_be, pred_be)},
-        {"name": "도서 val+test (평균 보정)", **metrics(y_be, shift_be)},
-        {"name": "도서 val+test (평균 베이스라인)", **metrics(y_be, np.full_like(y_be, book_mean))},
-        {"name": "도서 val+test (유저 평균 베이스라인)", **metrics(y_be, user_mean_base)},
+        {"name": "영화 Test (모델)", **metrics(y_mt, pred_mt)},
+        {"name": "영화 Test (모델, 평균 보정)", **metrics(y_mt, shift_mt)},
+        {"name": "영화 Test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
+        {"name": "영화 Test (유저 평균 베이스라인)", **metrics(y_mt, m_mean[u_mt].astype(np.float32))},
+        {"name": "도서 Test (모델)", **metrics(y_bt, pred_bt)},
+        {"name": "도서 Test (모델, 평균 보정)", **metrics(y_bt, shift_bt)},
+        {"name": "도서 Test (평균 베이스라인)", **metrics(y_bt, np.full_like(y_bt, book_mean))},
+        {"name": "도서 Test (유저 평균 베이스라인)", **metrics(y_bt, b_mean[u_bt].astype(np.float32))},
     ]
-    print("\n[영화 validation Ridge → 영화 test / 도서 val+test]")
+    print("\n[영화(validation) Ridge 학습 결과 비교]")
     for row in metric_rows:
         report(row["name"], row)
 
@@ -370,12 +363,12 @@ def main():
             "ridge_alpha": RIDGE_ALPHA,
             "positive_coef": True,
             "fit_split": "movie validation residual",
-            "eval": "movie test + book val+test",
+            "eval": "movie test + book test",
             "movie_mean": movie_mean,
             "coefficients": coefs,
             "intercept": float(model.intercept_),
-            "pred_mean": float(pred_be.mean()),
-            "true_mean": float(y_be.mean()),
+            "pred_mean": float(pred_bt.mean()),
+            "true_mean": float(y_bt.mean()),
             "book_train_mean": book_mean,
             "rec_domain": REC_DOMAIN,
             "user_id": int(user_id),
@@ -390,40 +383,38 @@ if __name__ == "__main__":
 
 """
 예측 = 유저 train 평균 + b + w·(장르 + 줄거리칸 + 길이 + 연도),  w ≥ 0
-계수: {'genre_cos': 0.616, 'plot_w_mean': 0.3146, 'plot_w_l2': 21.531, 'length_closeness': 0.0, 'year_closeness': 0.0} b = -0.355
+계수: {'genre_cos': 0.618, 'plot_w_mean': 0.3119, 'plot_w_l2': 21.384, 'length_closeness': 0.0, 'year_closeness': 0.0} b = -0.355
 줄거리 칸: 1024  alpha=10.0  positive=True (절편 제외)
 학습 행: 2175173 (영화 validation)
 
-[평균 편향 확인] (예측 평균 / 실제 평균 / 도메인 Train 평균)
-  영화 test: 3.570 / 3.572 / 3.571
-  도서 val+test: 4.055 / 3.921 / 3.920
+[평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)
+  영화: 3.570 / 3.571 / 3.571
+  도서: 4.055 / 3.921 / 3.920
 /Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval_usermean_plot_ridge.py:239: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   corr = pearsonr(y_pred, y_true)[0] if np.std(y_pred) > 0 else float("nan")
 
-[영화 validation Ridge → 영화 test / 도서 val+test]
-  영화 test (모델)                 RMSE=0.9331  MAE=0.7188  pearson=0.4662
-  영화 test (평균 보정)              RMSE=0.9331  MAE=0.7187  pearson=0.4662
-  영화 test (평균 베이스라인)           RMSE=1.0538  MAE=0.8358  pearson=nan
-  영화 test (유저 평균 베이스라인)        RMSE=0.9442  MAE=0.7279  pearson=0.4447
-  도서 val (모델)                  RMSE=0.9032  MAE=0.6956  pearson=0.4368
-  도서 test (모델)                 RMSE=0.8998  MAE=0.6937  pearson=0.4398
-  도서 val+test (모델)             RMSE=0.9015  MAE=0.6946  pearson=0.4383
-  도서 val+test (평균 보정)          RMSE=0.8915  MAE=0.6988  pearson=0.4383
-  도서 val+test (평균 베이스라인)       RMSE=0.9903  MAE=0.7740  pearson=nan
-  도서 val+test (유저 평균 베이스라인)    RMSE=0.8932  MAE=0.7007  pearson=0.4325
+[영화(validation) Ridge 학습 결과 비교]
+  영화 Test (모델)                 RMSE=0.9333  MAE=0.7188  pearson=0.4662
+  영화 Test (모델, 평균 보정)          RMSE=0.9333  MAE=0.7188  pearson=0.4662
+  영화 Test (평균 베이스라인)           RMSE=1.0541  MAE=0.8360  pearson=nan
+  영화 Test (유저 평균 베이스라인)        RMSE=0.9443  MAE=0.7279  pearson=0.4449
+  도서 Test (모델)                 RMSE=0.8999  MAE=0.6937  pearson=0.4398
+  도서 Test (모델, 평균 보정)          RMSE=0.8898  MAE=0.6977  pearson=0.4398
+  도서 Test (평균 베이스라인)           RMSE=0.9893  MAE=0.7733  pearson=nan
+  도서 Test (유저 평균 베이스라인)        RMSE=0.8917  MAE=0.6999  pearson=0.4336
 
 [book 추천 Top-10] 유저 13478
    item_id                           title  score  genre_cos  plot_cos  length_closeness  year_closeness
-0      212                       Atonement  3.765      0.820     0.746             0.989           0.752
-1     3465              Rich Man, Poor Man  3.758      0.820     0.629             0.950           0.965
+0      212                       Atonement  3.764      0.820     0.746             0.989           0.752
+1     3465              Rich Man, Poor Man  3.759      0.820     0.629             0.950           0.965
 2     6335               Oscar and Lucinda  3.755      0.820     0.731             0.979           0.796
-3     2769  Z: A Novel of Zelda Fitzgerald  3.750      0.797     0.704             0.989           0.663
+3     2769  Z: A Novel of Zelda Fitzgerald  3.751      0.797     0.704             0.989           0.663
 4     1957            I Capture the Castle  3.744      0.776     0.708             1.000           0.796
 5      867             The History of Love  3.744      0.785     0.706             0.971           0.725
-6     1758                        Birdsong  3.743      0.761     0.705             0.985           0.805
-7     9483                 Any Human Heart  3.741      0.761     0.654             0.986           0.743
-8     6467     The Women of Brewster Place  3.740      0.761     0.686             0.959           0.929
-9     9627   The Hand That First Held Mine  3.739      0.785     0.748             0.987           0.690
+6     1758                        Birdsong  3.742      0.761     0.705             0.985           0.805
+7     9483                 Any Human Heart  3.740      0.761     0.654             0.986           0.743
+8     6467     The Women of Brewster Place  3.739      0.761     0.686             0.959           0.929
+9     9627   The Hand That First Held Mine  3.738      0.785     0.748             0.987           0.690
 
 저장: /Users/chaehee/Documents/school/ML/machine_learning_term_project/results/content_based/cross_domain_eval_usermean_plot_ridge
 """

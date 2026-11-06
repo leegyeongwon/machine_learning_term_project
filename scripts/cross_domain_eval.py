@@ -1,10 +1,10 @@
-"""영화로 학습한 선형 모델 -> 영화 Test / 도서 val+test 평가 + 유저별 Top-K 추천
+"""영화로 학습한 선형 모델 -> 영화 Test / 도서 Test 평가 + 유저별 Top-K 추천
 
 영화·책 평점은 8:1:1 (train / validation / test).
 영화 유저 프로필은 train 평점(npz에 저장됨)을 그대로 쓴다.
 가중치는 영화 validation 평점으로 학습한다. (프로필에 안 들어간 칸)
-같은 도메인 채점은 영화 test, 교차 도메인은 도서 validation + test.
-책 train은 프로필이라 채점에 넣지 않는다.
+같은 도메인 채점은 영화 test, 교차 도메인은 도서 test.
+책 train·validation은 채점에 넣지 않는다.
 
 피처 4개 (클수록 유사): 장르 코사인, 줄거리 코사인, 러닝타임/페이지 근접도, 연도 근접도
 
@@ -204,36 +204,29 @@ def main():
     print("계수:", coefs, "b =", round(float(model.intercept_), 3))
     print("학습 행:", len(y_fit), "(영화 validation)")
 
-    # 2) 영화 test(같은 도메인) / 도서 val+test(교차 도메인)
+    # 2) 영화 Test / 도서 Test 평가 (predict만, 재학습 없음)
     X_mt, y_mt = build_features(movie, "test")
-    X_bv, y_bv = build_features(book, "validation")
     X_bt, y_bt = build_features(book, "test")
-    X_be = np.vstack([X_bv, X_bt])
-    y_be = np.concatenate([y_bv, y_bt])
     movie_mean = float(movie["profile"]["train_ratings"].mean())
     book_mean = float(book["profile"]["train_ratings"].mean())
     pred_mt = model.predict(X_mt)
-    pred_bv = model.predict(X_bv)
     pred_bt = model.predict(X_bt)
-    pred_be = model.predict(X_be)
     shift_mt = pred_mt - pred_mt.mean() + movie_mean
-    shift_be = pred_be - pred_be.mean() + book_mean
+    shift_bt = pred_bt - pred_bt.mean() + book_mean
 
-    print("\n[평균 편향 확인] (예측 평균 / 실제 평균 / 도메인 Train 평균)")
-    print(f"  영화 test: {pred_mt.mean():.3f} / {y_mt.mean():.3f} / {movie_mean:.3f}")
-    print(f"  도서 val+test: {pred_be.mean():.3f} / {y_be.mean():.3f} / {book_mean:.3f}")
+    print("\n[평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)")
+    print(f"  영화: {pred_mt.mean():.3f} / {y_mt.mean():.3f} / {movie_mean:.3f}")
+    print(f"  도서: {pred_bt.mean():.3f} / {y_bt.mean():.3f} / {book_mean:.3f}")
 
     metric_rows = [
-        {"name": "영화 test (모델)", **metrics(y_mt, pred_mt)},
-        {"name": "영화 test (평균 보정)", **metrics(y_mt, shift_mt)},
-        {"name": "영화 test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
-        {"name": "도서 val (모델)", **metrics(y_bv, pred_bv)},
-        {"name": "도서 test (모델)", **metrics(y_bt, pred_bt)},
-        {"name": "도서 val+test (모델)", **metrics(y_be, pred_be)},
-        {"name": "도서 val+test (평균 보정)", **metrics(y_be, shift_be)},
-        {"name": "도서 val+test (평균 베이스라인)", **metrics(y_be, np.full_like(y_be, book_mean))},
+        {"name": "영화 Test (모델)", **metrics(y_mt, pred_mt)},
+        {"name": "영화 Test (모델, 평균 보정)", **metrics(y_mt, shift_mt)},
+        {"name": "영화 Test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
+        {"name": "도서 Test (모델)", **metrics(y_bt, pred_bt)},
+        {"name": "도서 Test (모델, 평균 보정)", **metrics(y_bt, shift_bt)},
+        {"name": "도서 Test (평균 베이스라인)", **metrics(y_bt, np.full_like(y_bt, book_mean))},
     ]
-    print("\n[영화 validation 학습 → 영화 test / 도서 val+test]")
+    print("\n[영화(validation) 학습 결과 비교]")
     for row in metric_rows:
         report(row["name"], row)
 
@@ -257,12 +250,12 @@ def main():
             "script": "cross_domain_eval.py",
             "n_fit": int(len(y_fit)),
             "fit_split": "movie validation",
-            "eval": "movie test + book val+test",
+            "eval": "movie test + book test",
             "movie_mean": movie_mean,
             "coefficients": coefs,
             "intercept": float(model.intercept_),
-            "pred_mean": float(pred_be.mean()),
-            "true_mean": float(y_be.mean()),
+            "pred_mean": float(pred_bt.mean()),
+            "true_mean": float(y_bt.mean()),
             "book_train_mean": book_mean,
             "rec_domain": REC_DOMAIN,
             "user_id": int(user_id),
@@ -276,37 +269,35 @@ if __name__ == "__main__":
     main()
 
 """
-계수: {'genre_cos': 0.7, 'plot_cos': 0.866, 'length_closeness': 0.0, 'year_closeness': 0.0} b = 2.773
+계수: {'genre_cos': 0.705, 'plot_cos': 0.863, 'length_closeness': 0.0, 'year_closeness': 0.0} b = 2.773
 학습 행: 2175173 (영화 validation)
 
-[평균 편향 확인] (예측 평균 / 실제 평균 / 도메인 Train 평균)
-  영화 test: 3.570 / 3.572 / 3.571
-  도서 val+test: 3.806 / 3.921 / 3.920
+[평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)
+  영화: 3.571 / 3.571 / 3.571
+  도서: 3.807 / 3.921 / 3.920
 /Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval.py:153: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   corr = pearsonr(y_pred, y_true)[0] if np.std(y_pred) > 0 else float("nan")
 
-[영화 validation 학습 → 영화 test / 도서 val+test]
-  영화 test (모델)                 RMSE=0.9860  MAE=0.7799  pearson=0.3530
-  영화 test (평균 보정)              RMSE=0.9860  MAE=0.7798  pearson=0.3530
-  영화 test (평균 베이스라인)           RMSE=1.0538  MAE=0.8358  pearson=nan
-  도서 val (모델)                  RMSE=0.9746  MAE=0.7872  pearson=0.2173
-  도서 test (모델)                 RMSE=0.9716  MAE=0.7850  pearson=0.2212
-  도서 val+test (모델)             RMSE=0.9731  MAE=0.7861  pearson=0.2192
-  도서 val+test (평균 보정)          RMSE=0.9662  MAE=0.7612  pearson=0.2192
-  도서 val+test (평균 베이스라인)       RMSE=0.9903  MAE=0.7740  pearson=nan
+[영화(validation) 학습 결과 비교]
+  영화 Test (모델)                 RMSE=0.9861  MAE=0.7797  pearson=0.3535
+  영화 Test (모델, 평균 보정)          RMSE=0.9861  MAE=0.7797  pearson=0.3535
+  영화 Test (평균 베이스라인)           RMSE=1.0541  MAE=0.8360  pearson=nan
+  도서 Test (모델)                 RMSE=0.9715  MAE=0.7847  pearson=0.2209
+  도서 Test (모델, 평균 보정)          RMSE=0.9649  MAE=0.7604  pearson=0.2209
+  도서 Test (평균 베이스라인)           RMSE=0.9893  MAE=0.7733  pearson=nan
 
 [book 추천 Top-10] 유저 13478
    item_id                                         title  score  genre_cos  plot_cos  length_closeness  year_closeness
-0      212                                     Atonement  3.993      0.820     0.746             0.989           0.752
-1     6335                             Oscar and Lucinda  3.980      0.820     0.731             0.979           0.796
-2     9627                 The Hand That First Held Mine  3.971      0.785     0.748             0.987           0.690
-3     6090                          The Baker's Daughter  3.965      0.785     0.742             0.975           0.672
-4      727                                    The Reader  3.961      0.761     0.757             0.963           0.805
-5      689                               Beautiful Ruins  3.957      0.785     0.733             0.987           0.672
-6     1566                                   Ethan Frome  3.952      0.761     0.747             0.941           0.734
-7     4438                            Dear Life: Stories  3.952      0.720     0.780             0.986           0.672
-8     1565                      Death Comes to Pemberley  3.952      0.783     0.728             0.978           0.681
-9     6948  Sense & Sensibility (The Austen Project, #1)  3.952      0.776     0.734             0.991           0.663
+0      212                                     Atonement  3.995      0.820     0.746             0.989           0.752
+1     6335                             Oscar and Lucinda  3.981      0.820     0.731             0.979           0.796
+2     9627                 The Hand That First Held Mine  3.972      0.785     0.748             0.987           0.690
+3     6090                          The Baker's Daughter  3.966      0.785     0.742             0.975           0.672
+4      727                                    The Reader  3.962      0.761     0.757             0.963           0.805
+5      689                               Beautiful Ruins  3.959      0.785     0.733             0.987           0.672
+6     1566                                   Ethan Frome  3.954      0.761     0.747             0.941           0.734
+7     1565                      Death Comes to Pemberley  3.953      0.783     0.728             0.978           0.681
+8     4438                            Dear Life: Stories  3.953      0.720     0.780             0.986           0.672
+9     6948  Sense & Sensibility (The Austen Project, #1)  3.953      0.776     0.734             0.991           0.663
 
 저장: /Users/chaehee/Documents/school/ML/machine_learning_term_project/results/content_based/cross_domain_eval
 """

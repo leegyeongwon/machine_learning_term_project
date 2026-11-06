@@ -1,6 +1,6 @@
 feature,weight
-genre_cos,0.6388301849365234
+genre_cos,0.6408506631851196
 plot_cos,0.0
 length_closeness,0.0
 year_closeness,0.0
-intercept,-0.32755088806152344
+intercept,-0.32802915573120117
