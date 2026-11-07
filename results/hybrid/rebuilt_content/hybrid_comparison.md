@@ -66,7 +66,7 @@ Validation B에서 alpha=0.00~1.00을 0.01 간격으로 비교하였다. 총 101
 python -B scripts/run_content_hybrid_local.py --team-source <팀원_원본_코드.py> --content-output results/content_based/reproduction_new --hybrid-output results/hybrid/reproduction_new
 ```
 
-이 명령은 Content-based 학습부터 Hybrid 평가까지 수행하므로 새 출력 폴더를 지정해야 한다. 이번 산출물 정리에서는 실행하지 않았다. `run_updated_hybrid.py`는 문제가 확인된 이전 CSV 경로를 사용하므로 재현 실행에 사용하지 않는다. 검증 함수만 로컬 실행 파일에서 재사용한다.
+이 명령은 Content-based 학습부터 Hybrid 평가까지 수행하므로 새 출력 폴더를 지정해야 한다. 이번 산출물 정리에서는 실행하지 않았다. `run_updated_hybrid.py`의 구형 CLI는 잘못된 분할의 CSV를 사용하지 않도록 비활성화하였다. 직접 실행하면 최종 실행기를 안내하고 종료하며, 검증 함수는 로컬 실행 파일에서 그대로 재사용한다.
 
 저장된 결과를 시각화하는 명령은 `python -B scripts/plot_updated_hybrid_results.py`이다. 학습·예측·지표 재평가 없이 결과 CSV/JSON만 읽는다. 그래프와 비교표가 이미 있으면 덮어쓰지 않고 중단한다. 원래 실험의 그래프를 새로 만들려면 입력 결과 세 파일을 새 폴더에 복사하고 `--results-dir <새_폴더>`로 지정한다. 원 실험의 출처 JSON 및 기존 성능 CSV도 저장소의 원래 경로에 필요하다.
 
