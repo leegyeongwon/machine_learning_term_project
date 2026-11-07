@@ -1,17 +1,19 @@
 {
   "script": "cross_domain_eval_usermean.py",
-  "n_fit": 2175173,
-  "fit_split": "movie validation residual",
+  "n_fit": 1087586,
+  "n_val_b": 1087587,
+  "fit_split": "movie validation A residual",
+  "alpha_split": "movie validation B",
   "eval": "movie test + book test",
   "movie_mean": 3.5706832037430587,
   "coefficients": {
-    "genre_cos": 0.641,
+    "genre_cos": 0.643,
     "plot_cos": 0.0,
     "length_closeness": 0.0,
     "year_closeness": 0.0
   },
-  "intercept": -0.32802915573120117,
-  "pred_mean": 4.0222411676135295,
+  "intercept": -0.3299281895160675,
+  "pred_mean": 4.021892056799752,
   "true_mean": 3.920607089996338,
   "book_train_mean": 3.9195550557257484,
   "rec_domain": "book",
@@ -19,16 +21,22 @@
   "top_k": 10,
   "metrics": [
     {
+      "name": "영화 Validation B (모델)",
+      "rmse": 0.9366868612984633,
+      "mae": 0.7220656892056363,
+      "pearson": 0.46164975318277923
+    },
+    {
       "name": "영화 Test (모델)",
-      "rmse": 0.9360492059170741,
-      "mae": 0.7215683756788509,
-      "pearson": 0.4607451630752012
+      "rmse": 0.936050060709902,
+      "mae": 0.721632275452117,
+      "pearson": 0.4607527027842044
     },
     {
       "name": "영화 Test (모델, 평균 보정)",
-      "rmse": 0.9360490563617433,
-      "mae": 0.7215146332319301,
-      "pearson": 0.4607451630752012
+      "rmse": 0.9360492200658961,
+      "mae": 0.7215175841360091,
+      "pearson": 0.4607527027842045
     },
     {
       "name": "영화 Test (평균 베이스라인)",
@@ -44,15 +52,15 @@
     },
     {
       "name": "도서 Test (모델)",
-      "rmse": 0.8971167818768631,
-      "mae": 0.6946356444370783,
-      "pearson": 0.4363035713029455
+      "rmse": 0.8971074609947218,
+      "mae": 0.6946611062661654,
+      "pearson": 0.436261631456566
     },
     {
       "name": "도서 Test (모델, 평균 보정)",
-      "rmse": 0.8913417673019799,
-      "mae": 0.6991792737688266,
-      "pearson": 0.4363035713029455
+      "rmse": 0.8913721240878186,
+      "mae": 0.6992012330934722,
+      "pearson": 0.43626163145656616
     },
     {
       "name": "도서 Test (평균 베이스라인)",

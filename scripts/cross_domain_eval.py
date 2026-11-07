@@ -2,7 +2,8 @@
 
 영화·책 평점은 8:1:1 (train / validation / test).
 영화 유저 프로필은 train 평점(npz에 저장됨)을 그대로 쓴다.
-가중치는 영화 validation 평점으로 학습한다. (프로필에 안 들어간 칸)
+가중치는 공통 Validation A로 학습한다. (hybrid_validation)
+Validation B 예측은 하이브리드 α 선택용으로 저장한다.
 같은 도메인 채점은 영화 test, 교차 도메인은 도서 test.
 책 train·validation은 채점에 넣지 않는다.
 
@@ -24,6 +25,8 @@ from sklearn.linear_model import LinearRegression
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data" / "processed"
 OUTPUT_DIR = PROJECT_ROOT / "results" / "content_based" / "cross_domain_eval"
+HYBRID_SPLIT_NPZ = DATA_DIR / "hybrid_validation" / "validation_split_indices.npz"
+MOVIE_ITEM_NPZ = DATA_DIR / "movie_item_user_data.npz"
 
 # ---- 추천 설정 ----
 REC_DOMAIN = "book"   # 추천받을 도메인: "movie" 또는 "book"
@@ -108,7 +111,33 @@ def build_features(domain, split):
     # ID -> 행 위치 (ID 배열은 정렬되어 있다고 가정)
     u_idx = np.searchsorted(domain["user_ids"], user_ids)
     i_idx = np.searchsorted(domain["item_ids"], item_ids)
-    return pair_features(domain, u_idx, i_idx), y
+    return pair_features(domain, u_idx, i_idx), y, user_ids, item_ids
+
+
+def load_hybrid_val_part(domain, part):
+    """movie_item_user_data.npz Validation 행을 A/B 인덱스로 고른다."""
+    with np.load(HYBRID_SPLIT_NPZ) as f:
+        indices = f[f"{part}_indices"]
+    with np.load(MOVIE_ITEM_NPZ, allow_pickle=False) as src:
+        user_ids = src["validation_user_ids"][indices].astype(np.int64)
+        item_ids = src["validation_movie_ids"][indices].astype(np.int64)
+        y = src["validation_ratings"][indices].astype(np.float32)
+    u_idx = np.searchsorted(domain["user_ids"], user_ids)
+    i_idx = np.searchsorted(domain["item_ids"], item_ids)
+    if np.any(domain["user_ids"][u_idx] != user_ids):
+        raise ValueError("Validation 유저가 콘텐츠 프로필에 없습니다.")
+    if np.any(domain["item_ids"][i_idx] != item_ids):
+        raise ValueError("Validation 아이템이 콘텐츠 목록에 없습니다.")
+    return u_idx, i_idx, y, user_ids, item_ids
+
+
+def save_predictions(path, user_ids, item_ids, rating, predicted):
+    pd.DataFrame({
+        "user_id": np.asarray(user_ids, np.int64),
+        "item_id": np.asarray(item_ids, np.int64),
+        "rating": np.asarray(rating, float),
+        "predicted_rating": np.clip(np.asarray(predicted, float), 0.5, 5.0),
+    }).to_csv(path, index=False)
 
 
 # ------------------------------------------------------------
@@ -196,21 +225,28 @@ def save_run(output_dir, coefficients, metrics_rows, recommendations, summary):
 def main():
     movie = load_domain("movie", "movie_ids")
     book = load_domain("book", "book_ids")
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1) 영화 validation으로 가중치 학습. 프로필은 train 그대로.
-    X_fit, y_fit = build_features(movie, "validation")
-    model = LinearRegression(positive=True).fit(X_fit, y_fit)
+    # 1) 영화 Validation A로 가중치 학습. 프로필은 train 그대로.
+    u_fit, i_fit, y_fit, _, _ = load_hybrid_val_part(movie, "a")
+    model = LinearRegression(positive=True).fit(pair_features(movie, u_fit, i_fit), y_fit)
     coefs = {n: round(float(w), 3) for n, w in zip(FEATURE_NAMES, model.coef_)}
     print("계수:", coefs, "b =", round(float(model.intercept_), 3))
-    print("학습 행:", len(y_fit), "(영화 validation)")
+    print("학습 행:", len(y_fit), "(영화 Validation A)")
+
+    u_b, i_b, y_b, uid_b, iid_b = load_hybrid_val_part(movie, "b")
+    pred_b = model.predict(pair_features(movie, u_b, i_b))
+    save_predictions(OUTPUT_DIR / "movie_val_b_predictions.csv", uid_b, iid_b, y_b, pred_b)
 
     # 2) 영화 Test / 도서 Test 평가 (predict만, 재학습 없음)
-    X_mt, y_mt = build_features(movie, "test")
-    X_bt, y_bt = build_features(book, "test")
+    X_mt, y_mt, uid_mt, iid_mt = build_features(movie, "test")
+    X_bt, y_bt, uid_bt, iid_bt = build_features(book, "test")
     movie_mean = float(movie["profile"]["train_ratings"].mean())
     book_mean = float(book["profile"]["train_ratings"].mean())
     pred_mt = model.predict(X_mt)
     pred_bt = model.predict(X_bt)
+    save_predictions(OUTPUT_DIR / "movie_test_predictions.csv", uid_mt, iid_mt, y_mt, pred_mt)
+    save_predictions(OUTPUT_DIR / "book_test_predictions.csv", uid_bt, iid_bt, y_bt, pred_bt)
     shift_mt = pred_mt - pred_mt.mean() + movie_mean
     shift_bt = pred_bt - pred_bt.mean() + book_mean
 
@@ -219,6 +255,7 @@ def main():
     print(f"  도서: {pred_bt.mean():.3f} / {y_bt.mean():.3f} / {book_mean:.3f}")
 
     metric_rows = [
+        {"name": "영화 Validation B (모델)", **metrics(y_b, pred_b)},
         {"name": "영화 Test (모델)", **metrics(y_mt, pred_mt)},
         {"name": "영화 Test (모델, 평균 보정)", **metrics(y_mt, shift_mt)},
         {"name": "영화 Test (평균 베이스라인)", **metrics(y_mt, np.full_like(y_mt, movie_mean))},
@@ -226,7 +263,7 @@ def main():
         {"name": "도서 Test (모델, 평균 보정)", **metrics(y_bt, shift_bt)},
         {"name": "도서 Test (평균 베이스라인)", **metrics(y_bt, np.full_like(y_bt, book_mean))},
     ]
-    print("\n[영화(validation) 학습 결과 비교]")
+    print("\n[영화 Validation A 학습 결과 비교]")
     for row in metric_rows:
         report(row["name"], row)
 
@@ -249,7 +286,9 @@ def main():
         {
             "script": "cross_domain_eval.py",
             "n_fit": int(len(y_fit)),
-            "fit_split": "movie validation",
+            "n_val_b": int(len(y_b)),
+            "fit_split": "movie validation A",
+            "alpha_split": "movie validation B",
             "eval": "movie test + book test",
             "movie_mean": movie_mean,
             "coefficients": coefs,
@@ -269,20 +308,21 @@ if __name__ == "__main__":
     main()
 
 """
-계수: {'genre_cos': 0.705, 'plot_cos': 0.863, 'length_closeness': 0.0, 'year_closeness': 0.0} b = 2.773
-학습 행: 2175173 (영화 validation)
+계수: {'genre_cos': 0.707, 'plot_cos': 0.866, 'length_closeness': 0.0, 'year_closeness': 0.0} b = 2.77
+학습 행: 1087586 (영화 Validation A)
 
 [평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)
-  영화: 3.571 / 3.571 / 3.571
+  영화: 3.569 / 3.571 / 3.571
   도서: 3.807 / 3.921 / 3.920
-/Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval.py:153: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+/Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval.py:182: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   corr = pearsonr(y_pred, y_true)[0] if np.std(y_pred) > 0 else float("nan")
 
-[영화(validation) 학습 결과 비교]
-  영화 Test (모델)                 RMSE=0.9861  MAE=0.7797  pearson=0.3535
+[영화 Validation A 학습 결과 비교]
+  영화 Validation B (모델)         RMSE=0.9877  MAE=0.7813  pearson=0.3525
+  영화 Test (모델)                 RMSE=0.9861  MAE=0.7798  pearson=0.3535
   영화 Test (모델, 평균 보정)          RMSE=0.9861  MAE=0.7797  pearson=0.3535
   영화 Test (평균 베이스라인)           RMSE=1.0541  MAE=0.8360  pearson=nan
-  도서 Test (모델)                 RMSE=0.9715  MAE=0.7847  pearson=0.2209
+  도서 Test (모델)                 RMSE=0.9716  MAE=0.7848  pearson=0.2209
   도서 Test (모델, 평균 보정)          RMSE=0.9649  MAE=0.7604  pearson=0.2209
   도서 Test (평균 베이스라인)           RMSE=0.9893  MAE=0.7733  pearson=nan
 
