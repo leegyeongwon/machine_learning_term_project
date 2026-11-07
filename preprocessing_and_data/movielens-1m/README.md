@@ -8,8 +8,8 @@
 
 | 스크립트 | 용도 | 결과 파일 |
 |---|---|---|
-| `preprocess_item_basedv2.py` | 협업 필터링용 평점 행렬 | `item_user_data.npz` |
-| `preprocess_content_basedv2.py` | 콘텐츠 기반 추천용 영화 특성 + 유저 프로필, 도서 파일 갱신 | `movie_content.npz`, `movie_user_profiles.npz` (+ 갱신된 `book_content.npz`, `book_user_profiles.npz`) |
+| `preprocess_item_based.py` | 협업 필터링용 평점 행렬 | `item_user_data.npz` |
+| `preprocess_content_based.py` | 콘텐츠 기반 추천용 영화 특성 + 유저 프로필, 도서 파일 갱신 | `movie_content.npz`, `movie_user_profiles.npz` (+ 갱신된 `book_content.npz`, `book_user_profiles.npz`) |
 
 모든 결과 파일은 `data/processed/`에 저장됩니다.
 
@@ -22,7 +22,7 @@
 
 ---
 
-## 1. `preprocess_item_basedv2.py` (협업 필터링)
+## 1. `preprocess_item_based.py` (협업 필터링)
 
 ### 가공 방식
 
@@ -44,7 +44,7 @@
 
 ---
 
-## 2. `preprocess_content_basedv2.py` (콘텐츠 기반 + 도메인 정렬)
+## 2. `preprocess_content_based.py` (콘텐츠 기반 + 도메인 정렬)
 
 ### 가공 방식
 

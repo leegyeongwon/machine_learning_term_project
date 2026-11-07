@@ -1,4 +1,7 @@
-
+"""
+TMDB 영화 5000개와 movielens-32M의 데이터를 영화 기준으로 합치는 코드.
+각각에 유용한 feature가 있어서 두 데이터를 합칩니다.
+"""
 import pandas as pd
 import json
 from pathlib import Path

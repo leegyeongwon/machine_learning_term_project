@@ -99,7 +99,6 @@ books_df["book_id"] = pd.to_numeric(
 books_df = books_df.dropna(subset=["book_id"]).copy()
 books_df["book_id"] = books_df["book_id"].astype(np.int64)
 
-# [중요] ratings_df는 협업 필터링 코드와 분할이 같아야 하므로
 # 필터링, 중복 제거, 정렬 등 어떤 가공도 하지 않고 원본 그대로 둡니다.
 # (train_test_split은 행 개수와 순서만 보고 섞기 때문)
 ratings_df = ratings_df[["user_id", "book_id", "rating"]]
@@ -270,7 +269,6 @@ MAX_VALID_YEAR = 2020  # 이 값보다 크면 세기 오류로 간주
 for i in range(len(publish_year)):
     if np.isfinite(publish_year[i]) and publish_year[i] > MAX_VALID_YEAR:
         publish_year[i] -= 100  # 2075 -> 1975
-
 
 year_missing = ~np.isfinite(publish_year)
 publish_year[year_missing] = np.nan
