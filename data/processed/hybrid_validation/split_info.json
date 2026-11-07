@@ -1,0 +1,18 @@
+{
+  "source_file": "data/processed/movie_item_user_data.npz",
+  "source_sha256": "083b64d1de94f09405e08fad538ecad3ae4396e86ab481b08f7d35c44a344481",
+  "seed": 42,
+  "method": "numpy.random.default_rng(42).permutation; A = first n//2 rows, B = remaining rows",
+  "index_basis": "Zero-based rows in the original Validation arrays",
+  "counts": {
+    "train": 17401383,
+    "validation": 2175173,
+    "validation_a": 1087586,
+    "validation_b": 1087587,
+    "test": 2175173
+  },
+  "purpose": {
+    "validation_a": "Content-based regression training",
+    "validation_b": "Hybrid weight selection"
+  }
+}
