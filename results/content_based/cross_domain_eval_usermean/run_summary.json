@@ -1,0 +1,78 @@
+{
+  "script": "cross_domain_eval_usermean.py",
+  "n_fit": 1087586,
+  "n_val_b": 1087587,
+  "fit_split": "movie validation A residual",
+  "alpha_split": "movie validation B",
+  "eval": "movie test + book test",
+  "movie_mean": 3.5706832037430587,
+  "coefficients": {
+    "genre_cos": 0.643,
+    "plot_cos": 0.0,
+    "length_closeness": 0.0,
+    "year_closeness": 0.0
+  },
+  "intercept": -0.3299281895160675,
+  "pred_mean": 4.021892056799752,
+  "true_mean": 3.920607089996338,
+  "book_train_mean": 3.9195550557257484,
+  "rec_domain": "book",
+  "user_id": 13478,
+  "top_k": 10,
+  "metrics": [
+    {
+      "name": "영화 Validation B (모델)",
+      "rmse": 0.9366868612984633,
+      "mae": 0.7220656892056363,
+      "pearson": 0.46164975318277923
+    },
+    {
+      "name": "영화 Test (모델)",
+      "rmse": 0.9358448873817162,
+      "mae": 0.7215327907708017,
+      "pearson": 0.46070225979737195
+    },
+    {
+      "name": "영화 Test (모델, 평균 보정)",
+      "rmse": 0.9358435709603534,
+      "mae": 0.7214550355791332,
+      "pearson": 0.460702259797372
+    },
+    {
+      "name": "영화 Test (평균 베이스라인)",
+      "rmse": 1.053843379020691,
+      "mae": 0.8358114361763,
+      "pearson": null
+    },
+    {
+      "name": "영화 Test (유저 평균 베이스라인)",
+      "rmse": 0.944175124168396,
+      "mae": 0.7278792262077332,
+      "pearson": 0.4446926414966583
+    },
+    {
+      "name": "도서 Test (모델)",
+      "rmse": 0.8971074609947218,
+      "mae": 0.6946611062661654,
+      "pearson": 0.436261631456566
+    },
+    {
+      "name": "도서 Test (모델, 평균 보정)",
+      "rmse": 0.8913721240878186,
+      "mae": 0.6992012330934722,
+      "pearson": 0.43626163145656616
+    },
+    {
+      "name": "도서 Test (평균 베이스라인)",
+      "rmse": 0.9892997741699219,
+      "mae": 0.773341715335846,
+      "pearson": null
+    },
+    {
+      "name": "도서 Test (유저 평균 베이스라인)",
+      "rmse": 0.8916588425636292,
+      "mae": 0.6998639106750488,
+      "pearson": 0.43364810943603516
+    }
+  ]
+}

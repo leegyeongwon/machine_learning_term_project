@@ -1,0 +1,28 @@
+{
+  "dataset": "books",
+  "seed": 42,
+  "val_size": 0.2,
+  "test_size": 0.2,
+  "ridge_alpha": 100.0,
+  "best_ridge_alpha": null,
+  "best_val_mae": null,
+  "val_mae_by_alpha": [],
+  "tuned": false,
+  "movies_path": null,
+  "users_path": null,
+  "item_features": "data\\processed\\book_content.npz",
+  "user_id": 1,
+  "n_train": 3628659,
+  "n_val": 1173910,
+  "n_test": 1173910,
+  "used_demographics": false,
+  "n_features": 1109,
+  "metrics": {
+    "n_test": 1173910,
+    "n_evaluated": 1173910,
+    "n_content": 1173910,
+    "n_fallback": 0,
+    "mae": 0.665911990372632,
+    "rmse": 0.8697525181257604
+  }
+}
