@@ -131,6 +131,21 @@ def load_hybrid_val_part(domain, part):
     return u_idx, i_idx, y, user_ids, item_ids
 
 
+def load_item_test(domain):
+    """movie_item_user_data.npz Test 행. Item-based와 같은 쌍."""
+    with np.load(MOVIE_ITEM_NPZ, allow_pickle=False) as src:
+        user_ids = src["test_user_ids"].astype(np.int64)
+        item_ids = src["test_movie_ids"].astype(np.int64)
+        y = src["test_ratings"].astype(np.float32)
+    u_idx = np.searchsorted(domain["user_ids"], user_ids)
+    i_idx = np.searchsorted(domain["item_ids"], item_ids)
+    if np.any(domain["user_ids"][u_idx] != user_ids):
+        raise ValueError("Test 유저가 콘텐츠 프로필에 없습니다.")
+    if np.any(domain["item_ids"][i_idx] != item_ids):
+        raise ValueError("Test 아이템이 콘텐츠 목록에 없습니다.")
+    return u_idx, i_idx, y, user_ids, item_ids
+
+
 def save_predictions(path, user_ids, item_ids, rating, predicted):
     pd.DataFrame({
         "user_id": np.asarray(user_ids, np.int64),
@@ -239,7 +254,8 @@ def main():
     save_predictions(OUTPUT_DIR / "movie_val_b_predictions.csv", uid_b, iid_b, y_b, pred_b)
 
     # 2) 영화 Test / 도서 Test 평가 (predict만, 재학습 없음)
-    X_mt, y_mt, uid_mt, iid_mt = build_features(movie, "test")
+    u_mt, i_mt, y_mt, uid_mt, iid_mt = load_item_test(movie)
+    X_mt = pair_features(movie, u_mt, i_mt)
     X_bt, y_bt, uid_bt, iid_bt = build_features(book, "test")
     movie_mean = float(movie["profile"]["train_ratings"].mean())
     book_mean = float(book["profile"]["train_ratings"].mean())
@@ -312,16 +328,16 @@ if __name__ == "__main__":
 학습 행: 1087586 (영화 Validation A)
 
 [평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)
-  영화: 3.569 / 3.571 / 3.571
+  영화: 3.570 / 3.572 / 3.571
   도서: 3.807 / 3.921 / 3.920
-/Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval.py:182: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+/Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval.py:197: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   corr = pearsonr(y_pred, y_true)[0] if np.std(y_pred) > 0 else float("nan")
 
 [영화 Validation A 학습 결과 비교]
   영화 Validation B (모델)         RMSE=0.9877  MAE=0.7813  pearson=0.3525
-  영화 Test (모델)                 RMSE=0.9861  MAE=0.7798  pearson=0.3535
-  영화 Test (모델, 평균 보정)          RMSE=0.9861  MAE=0.7797  pearson=0.3535
-  영화 Test (평균 베이스라인)           RMSE=1.0541  MAE=0.8360  pearson=nan
+  영화 Test (모델)                 RMSE=0.9860  MAE=0.7798  pearson=0.3530
+  영화 Test (모델, 평균 보정)          RMSE=0.9860  MAE=0.7797  pearson=0.3530
+  영화 Test (평균 베이스라인)           RMSE=1.0538  MAE=0.8358  pearson=nan
   도서 Test (모델)                 RMSE=0.9716  MAE=0.7848  pearson=0.2209
   도서 Test (모델, 평균 보정)          RMSE=0.9649  MAE=0.7604  pearson=0.2209
   도서 Test (평균 베이스라인)           RMSE=0.9893  MAE=0.7733  pearson=nan
@@ -341,3 +357,4 @@ if __name__ == "__main__":
 
 저장: /Users/chaehee/Documents/school/ML/machine_learning_term_project/results/content_based/cross_domain_eval
 """
+

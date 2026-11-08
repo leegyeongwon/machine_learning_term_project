@@ -149,6 +149,21 @@ def load_hybrid_val_part(domain, part):
     return u_idx, i_idx, y, user_ids, item_ids
 
 
+def load_item_test(domain):
+    """movie_item_user_data.npz Test 행. Item-based와 같은 쌍."""
+    with np.load(MOVIE_ITEM_NPZ, allow_pickle=False) as src:
+        user_ids = src["test_user_ids"].astype(np.int64)
+        item_ids = src["test_movie_ids"].astype(np.int64)
+        y = src["test_ratings"].astype(np.float32)
+    u_idx = np.searchsorted(domain["user_ids"], user_ids)
+    i_idx = np.searchsorted(domain["item_ids"], item_ids)
+    if np.any(domain["user_ids"][u_idx] != user_ids):
+        raise ValueError("Test 유저가 콘텐츠 프로필에 없습니다.")
+    if np.any(domain["item_ids"][i_idx] != item_ids):
+        raise ValueError("Test 아이템이 콘텐츠 목록에 없습니다.")
+    return u_idx, i_idx, y, user_ids, item_ids
+
+
 def save_predictions(path, user_ids, item_ids, rating, predicted):
     pd.DataFrame({
         "user_id": np.asarray(user_ids, np.int64),
@@ -340,7 +355,7 @@ def main():
 
     # 2) 영화 Test / 도서 Test. w는 고정, 평균은 각 도메인 유저 train.
     b_mean = train_user_means(book)
-    u_mt, i_mt, y_mt, uid_mt, iid_mt = split_rows(movie, "test")
+    u_mt, i_mt, y_mt, uid_mt, iid_mt = load_item_test(movie)
     u_bt, i_bt, y_bt, uid_bt, iid_bt = split_rows(book, "test")
     pred_mt = m_mean[u_mt] + predict_residual(model, movie, u_mt, i_mt)
     pred_bt = b_mean[u_bt] + predict_residual(model, book, u_bt, i_bt)
@@ -422,38 +437,39 @@ if __name__ == "__main__":
 
 """
 예측 = 유저 train 평균 + b + w·(장르 + 줄거리칸 + 길이 + 연도),  w ≥ 0
-계수: {'genre_cos': 0.618, 'plot_w_mean': 0.3119, 'plot_w_l2': 21.384, 'length_closeness': 0.0, 'year_closeness': 0.0} b = -0.355
+계수: {'genre_cos': 0.629, 'plot_w_mean': 0.1839, 'plot_w_l2': 12.259, 'length_closeness': 0.0, 'year_closeness': 0.0} b = -0.35
 줄거리 칸: 1024  alpha=10.0  positive=True (절편 제외)
-학습 행: 2175173 (영화 validation)
+학습 행: 1087586 (영화 Validation A)
 
 [평균 편향 확인] (예측 평균 / 실제 Test 평균 / 도메인 Train 평균)
-  영화: 3.570 / 3.571 / 3.571
-  도서: 4.055 / 3.921 / 3.920
-/Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval_usermean_plot_ridge.py:239: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  영화: 3.570 / 3.572 / 3.571
+  도서: 4.041 / 3.921 / 3.920
+/Users/chaehee/Documents/school/ML/machine_learning_term_project/scripts/cross_domain_eval_usermean_plot_ridge.py:283: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   corr = pearsonr(y_pred, y_true)[0] if np.std(y_pred) > 0 else float("nan")
 
-[영화(validation) Ridge 학습 결과 비교]
-  영화 Test (모델)                 RMSE=0.9333  MAE=0.7188  pearson=0.4662
-  영화 Test (모델, 평균 보정)          RMSE=0.9333  MAE=0.7188  pearson=0.4662
-  영화 Test (평균 베이스라인)           RMSE=1.0541  MAE=0.8360  pearson=nan
-  영화 Test (유저 평균 베이스라인)        RMSE=0.9443  MAE=0.7279  pearson=0.4449
-  도서 Test (모델)                 RMSE=0.8999  MAE=0.6937  pearson=0.4398
-  도서 Test (모델, 평균 보정)          RMSE=0.8898  MAE=0.6977  pearson=0.4398
+[영화 Validation A Ridge 학습 결과 비교]
+  영화 Validation B (모델)         RMSE=0.9350  MAE=0.7203  pearson=0.4651
+  영화 Test (모델)                 RMSE=0.9342  MAE=0.7198  pearson=0.4642
+  영화 Test (모델, 평균 보정)          RMSE=0.9342  MAE=0.7197  pearson=0.4642
+  영화 Test (평균 베이스라인)           RMSE=1.0538  MAE=0.8358  pearson=nan
+  영화 Test (유저 평균 베이스라인)        RMSE=0.9442  MAE=0.7279  pearson=0.4447
+  도서 Test (모델)                 RMSE=0.8985  MAE=0.6939  pearson=0.4385
+  도서 Test (모델, 평균 보정)          RMSE=0.8904  MAE=0.6983  pearson=0.4385
   도서 Test (평균 베이스라인)           RMSE=0.9893  MAE=0.7733  pearson=nan
   도서 Test (유저 평균 베이스라인)        RMSE=0.8917  MAE=0.6999  pearson=0.4336
 
 [book 추천 Top-10] 유저 13478
-   item_id                           title  score  genre_cos  plot_cos  length_closeness  year_closeness
-0      212                       Atonement  3.764      0.820     0.746             0.989           0.752
-1     3465              Rich Man, Poor Man  3.759      0.820     0.629             0.950           0.965
-2     6335               Oscar and Lucinda  3.755      0.820     0.731             0.979           0.796
-3     2769  Z: A Novel of Zelda Fitzgerald  3.751      0.797     0.704             0.989           0.663
-4     1957            I Capture the Castle  3.744      0.776     0.708             1.000           0.796
-5      867             The History of Love  3.744      0.785     0.706             0.971           0.725
-6     1758                        Birdsong  3.742      0.761     0.705             0.985           0.805
-7     9483                 Any Human Heart  3.740      0.761     0.654             0.986           0.743
-8     6467     The Women of Brewster Place  3.739      0.761     0.686             0.959           0.929
-9     9627   The Hand That First Held Mine  3.738      0.785     0.748             0.987           0.690
+   item_id                                   title  score  genre_cos  plot_cos  length_closeness  year_closeness
+0      212                               Atonement  3.742      0.820     0.746             0.989           0.752
+1     6335                       Oscar and Lucinda  3.737      0.820     0.731             0.979           0.796
+2     3465                      Rich Man, Poor Man  3.733      0.820     0.629             0.950           0.965
+3     2769          Z: A Novel of Zelda Fitzgerald  3.725      0.797     0.704             0.989           0.663
+4      867                     The History of Love  3.720      0.785     0.706             0.971           0.725
+5     1957                    I Capture the Castle  3.718      0.776     0.708             1.000           0.796
+6     6090                    The Baker's Daughter  3.718      0.785     0.742             0.975           0.672
+7     1990           The Art of Hearing Heartbeats  3.717      0.785     0.676             0.984           0.672
+8     9627           The Hand That First Held Mine  3.717      0.785     0.748             0.987           0.690
+9     8813  The Misremembered Man (Tailorstown #1)  3.716      0.781     0.667             0.981           0.681
 
 저장: /Users/chaehee/Documents/school/ML/machine_learning_term_project/results/content_based/cross_domain_eval_usermean_plot_ridge
 """
