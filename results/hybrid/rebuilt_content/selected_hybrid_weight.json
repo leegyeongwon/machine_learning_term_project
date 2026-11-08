@@ -1,0 +1,11 @@
+{
+  "item_weight": 0.98,
+  "content_weight": 0.020000000000000018,
+  "item_k": 50,
+  "content_model": "Nonnegative Ridge; alpha=10; Validation A residual training",
+  "validation_b_mae": 0.6365967947525993,
+  "validation_b_rmse": 0.8565031188083244,
+  "validation_b_count": 1087587,
+  "test_count": 2175173,
+  "split_seed": 42
+}

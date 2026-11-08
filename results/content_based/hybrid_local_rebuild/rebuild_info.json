@@ -1,0 +1,81 @@
+{
+  "input_sha256": {
+    "data/processed/movie_item_user_data.npz": "083b64d1de94f09405e08fad538ecad3ae4396e86ab481b08f7d35c44a344481",
+    "data/processed/hybrid_validation/validation_split_indices.npz": "e8fb6ad98d0b5dc2f44745bd7b3d47dac7216c72c8fa8a0ef931b57a054ab2b9",
+    "data/processed/movie_user_profiles.npz": "b465b072dfe772f378252b87602182c7e72b3d6adba0e2362e6c6148123a475c",
+    "data/processed/movie_content.npz": "8f59e71d771d7cd3c66a4464deec57dd2290d3d7bde3349a76536a4e4b4b744c",
+    "data/processed/hybrid_validation/validation_a.npz": "fe6b1c0f708953bad010e90d9d7950529fa43487817a22ff542a9d980334856e",
+    "data/processed/hybrid_validation/validation_b.npz": "3b5405cd8804d0181e36920182660c029927df3cc74bb9f6cf4d44273982cdaf",
+    "data/processed/hybrid_validation/split_info.json": "de4fd1af6177f9b5c590bd6f229d5a3a240094df3d65502138e6f9394a4e7b08",
+    "results/item_based/hybrid_update/item_validation_b_predictions.csv": "b50d208c292dd22f027341bdc2bea96076ec51d36d9d6c8161df74bebbbac3cb",
+    "results/item_based/hybrid_update/item_test_predictions.csv": "a3bb7151579488609d8216da7d768568a3fd28d31976c1100829a236f4cf4ddf"
+  },
+  "team_source_git_blob": "7b2eb0c306e64a8aff6935a99b03109ff2d40b07",
+  "team_source_sha256": "4cf085df20da03b755f6b3ecc583cafd774c378f12507cbfacce10ce8aea7a42",
+  "reused_functions": [
+    "load_domain",
+    "load_hybrid_val_part",
+    "train_user_means",
+    "pair_features",
+    "fit_ridge_batched",
+    "predict_residual",
+    "save_predictions"
+  ],
+  "training_rows": 1087586,
+  "training_split": "Common Validation A",
+  "ridge_alpha": 10,
+  "nonnegative_coefficients": true,
+  "intercept_constrained": false,
+  "profile_checks": {
+    "train_records_exact_match": true,
+    "genre_all_users_max_error": 6.970321805299662e-07,
+    "numeric_all_users_max_error": 4.172325134277344e-06,
+    "plot_sample_users": 128,
+    "plot_sample_max_error": 0.0,
+    "limitation": "Historical generation not proven; plot profiles sampled only"
+  },
+  "content_metrics": {
+    "val_b": {
+      "mae": 0.7196336065408465,
+      "rmse": 0.9345946222999416
+    },
+    "test": {
+      "mae": 0.7196878401116296,
+      "rmse": 0.9343422050884727
+    }
+  },
+  "selected": {
+    "item_weight": 0.98,
+    "content_weight": 0.020000000000000018,
+    "item_k": 50,
+    "content_model": "Nonnegative Ridge; alpha=10; Validation A residual training",
+    "validation_b_mae": 0.6365967947525993,
+    "validation_b_rmse": 0.8565031188083244,
+    "validation_b_count": 1087587,
+    "test_count": 2175173,
+    "split_seed": 42
+  },
+  "test_metrics": [
+    {
+      "model": "Item-based",
+      "mae": 0.6365159675178895,
+      "rmse": 0.857133512322316,
+      "count": 2175173
+    },
+    {
+      "model": "Content-based",
+      "mae": 0.7196878401116296,
+      "rmse": 0.9343422050884727,
+      "count": 2175173
+    },
+    {
+      "model": "Hybrid",
+      "mae": 0.6365006383035682,
+      "rmse": 0.8563130242807095,
+      "count": 2175173
+    }
+  ],
+  "prediction_pair_validation": "passed",
+  "output_round_trip": "passed",
+  "inputs_unchanged": true
+}

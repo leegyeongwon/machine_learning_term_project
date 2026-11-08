@@ -1,0 +1,18 @@
+{
+  "selected_k": 50,
+  "mae": 0.6376642335826331,
+  "rmse": 0.8588151613241284,
+  "k_candidates": [
+    20,
+    30,
+    50
+  ],
+  "train_data": "Existing MovieLens 32M Train",
+  "evaluation_data": "Validation A",
+  "split_seed": 42,
+  "train_count": 17401383,
+  "validation_a_count": 1087586,
+  "selection": "Lowest MAE, then RMSE, then K",
+  "source_file": "data/processed/movie_item_user_data.npz",
+  "source_sha256": "083b64d1de94f09405e08fad538ecad3ae4396e86ab481b08f7d35c44a344481"
+}

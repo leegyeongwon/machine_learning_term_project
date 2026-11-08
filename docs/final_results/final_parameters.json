@@ -1,0 +1,298 @@
+{
+  "datasets": {
+    "movie": {
+      "name": "MovieLens 32M + TMDB 5000 matched subset",
+      "ratings_used": 21751729,
+      "users": 200935,
+      "items": 4633
+    },
+    "book": {
+      "name": "Goodbooks-10k",
+      "ratings_used": 5976479,
+      "users": 53424,
+      "items": 10000
+    }
+  },
+  "data_version": {
+    "preprocessed_date": "2026-11-03",
+    "latest_publication_year_correction_applied": false,
+    "input_sha256": {
+      "movie_item_user_data.npz": "083b64d1de94f09405e08fad538ecad3ae4396e86ab481b08f7d35c44a344481",
+      "movie_content.npz": "8f59e71d771d7cd3c66a4464deec57dd2290d3d7bde3349a76536a4e4b4b744c",
+      "movie_user_profiles.npz": "b465b072dfe772f378252b87602182c7e72b3d6adba0e2362e6c6148123a475c",
+      "book_item_user_data.npz": "0b9d5a7d2f3c507b57b6245caaeb97867118b95aa210c0872839fcc036b26a57",
+      "book_content.npz": "2e4ea62622699150c0988158dee0b15fe6794c24f35eaf6300fdf4154b7bc1e0",
+      "book_user_profiles.npz": "85464bb53197561eaabe3eb34d1e69167cc2432e00aa212c649fcdf3c06508eb",
+      "item_user_data.npz": "f900b8000adc6b0736865a43c6a64225c46231e223de0640b4e025fe79910ebc"
+    }
+  },
+  "split_ratio": {
+    "train": 0.8,
+    "validation": 0.1,
+    "test": 0.1
+  },
+  "random_seed": 42,
+  "item_based_k": 50,
+  "content_ridge_alpha": 100.0,
+  "hybrid_weights": {
+    "item_based": 0.85,
+    "content_based": 0.15
+  },
+  "validation_selection": {
+    "fit": "Train only",
+    "selection": "Validation MAE, RMSE tie break",
+    "item_k_candidates": [
+      20,
+      30,
+      50
+    ],
+    "ridge_alpha_candidates": [
+      1,
+      10,
+      100
+    ],
+    "hybrid_item_weight_grid": {
+      "minimum": 0,
+      "maximum": 1,
+      "step": 0.01
+    },
+    "test_tuning": false,
+    "train_plus_validation_refit": false
+  },
+  "book_evaluation": {
+    "protocol": "Support-adapted",
+    "zero_shot": false,
+    "item_based": "Keep movie-selected K and recompute book similarities using Book Train ratings.",
+    "content_based": "Freeze movie coefficients and feature transformations; compute book user means and preference profiles using Book Train ratings.",
+    "hybrid": "Combine both book predictions using movie-selected fixed weights.",
+    "scoring_split": "Book Test; Book Validation is diagnostic only."
+  },
+  "source_run_path": "results/hybrid/reproduction_20261107_000603_KST",
+  "source_selection_path": "results/hybrid/reproduction_20261107_000603_KST/full/movielens_32m/selection.json",
+  "source_execution": {
+    "branch": "feature/item-transfer",
+    "head": "e72da978878f45081dd50cb68a7c2053fa8c730a",
+    "hybrid_reference": "501f486171f9cae66ca3829f360a939685a877e1"
+  },
+  "display_precision": {
+    "report_table_decimals": 6,
+    "chart_label_decimals": 4,
+    "csv": "Original stored values without display rounding"
+  },
+  "metric_winners": {
+    "movie": {
+      "mae": "Hybrid",
+      "rmse": "Hybrid"
+    },
+    "book_support_adapted": {
+      "mae": "Item-based",
+      "rmse": "Hybrid"
+    }
+  },
+  "figure_validation": {
+    "movie_metrics.png": {
+      "pixels": [
+        3840,
+        2160
+      ],
+      "dpi": [
+        240.00459999999998,
+        240.00459999999998
+      ],
+      "display_values": [
+        {
+          "domain": "movie",
+          "model": "Item-based",
+          "metric": "mae",
+          "value": "0.6365159675178895",
+          "display": "0.6365"
+        },
+        {
+          "domain": "movie",
+          "model": "Content-based",
+          "metric": "mae",
+          "value": "0.7147740540274923",
+          "display": "0.7148"
+        },
+        {
+          "domain": "movie",
+          "model": "Hybrid",
+          "metric": "mae",
+          "value": "0.6339490270795958",
+          "display": "0.6339"
+        },
+        {
+          "domain": "movie",
+          "model": "Item-based",
+          "metric": "rmse",
+          "value": "0.8571335123223159",
+          "display": "0.8571"
+        },
+        {
+          "domain": "movie",
+          "model": "Content-based",
+          "metric": "rmse",
+          "value": "0.9280309482620868",
+          "display": "0.9280"
+        },
+        {
+          "domain": "movie",
+          "model": "Hybrid",
+          "metric": "rmse",
+          "value": "0.8489774813206789",
+          "display": "0.8490"
+        }
+      ]
+    },
+    "book_metrics.png": {
+      "pixels": [
+        3840,
+        2160
+      ],
+      "dpi": [
+        240.00459999999998,
+        240.00459999999998
+      ],
+      "display_values": [
+        {
+          "domain": "book_support_adapted",
+          "model": "Item-based",
+          "metric": "mae",
+          "value": "0.6356932869909075",
+          "display": "0.6357"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Content-based",
+          "metric": "mae",
+          "value": "0.7464568135155111",
+          "display": "0.7465"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Hybrid",
+          "metric": "mae",
+          "value": "0.6363928390168102",
+          "display": "0.6364"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Item-based",
+          "metric": "rmse",
+          "value": "0.8624136667095049",
+          "display": "0.8624"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Content-based",
+          "metric": "rmse",
+          "value": "0.9637751337969912",
+          "display": "0.9638"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Hybrid",
+          "metric": "rmse",
+          "value": "0.850337497468611",
+          "display": "0.8503"
+        }
+      ]
+    },
+    "overall_comparison.png": {
+      "pixels": [
+        3840,
+        2160
+      ],
+      "dpi": [
+        240.00459999999998,
+        240.00459999999998
+      ],
+      "display_values": [
+        {
+          "domain": "movie",
+          "model": "Item-based",
+          "metric": "mae",
+          "value": "0.6365159675178895",
+          "display": "0.6365"
+        },
+        {
+          "domain": "movie",
+          "model": "Content-based",
+          "metric": "mae",
+          "value": "0.7147740540274923",
+          "display": "0.7148"
+        },
+        {
+          "domain": "movie",
+          "model": "Hybrid",
+          "metric": "mae",
+          "value": "0.6339490270795958",
+          "display": "0.6339"
+        },
+        {
+          "domain": "movie",
+          "model": "Item-based",
+          "metric": "rmse",
+          "value": "0.8571335123223159",
+          "display": "0.8571"
+        },
+        {
+          "domain": "movie",
+          "model": "Content-based",
+          "metric": "rmse",
+          "value": "0.9280309482620868",
+          "display": "0.9280"
+        },
+        {
+          "domain": "movie",
+          "model": "Hybrid",
+          "metric": "rmse",
+          "value": "0.8489774813206789",
+          "display": "0.8490"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Item-based",
+          "metric": "mae",
+          "value": "0.6356932869909075",
+          "display": "0.6357"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Content-based",
+          "metric": "mae",
+          "value": "0.7464568135155111",
+          "display": "0.7465"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Hybrid",
+          "metric": "mae",
+          "value": "0.6363928390168102",
+          "display": "0.6364"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Item-based",
+          "metric": "rmse",
+          "value": "0.8624136667095049",
+          "display": "0.8624"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Content-based",
+          "metric": "rmse",
+          "value": "0.9637751337969912",
+          "display": "0.9638"
+        },
+        {
+          "domain": "book_support_adapted",
+          "model": "Hybrid",
+          "metric": "rmse",
+          "value": "0.850337497468611",
+          "display": "0.8503"
+        }
+      ]
+    }
+  }
+}
